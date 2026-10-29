@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI Crop Advisor — Results</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/auth.css">
+<script src="/static/js/auth.js"></script>
+</head>
+<body>
+<div class="bg-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+<div class="app" id="main-app">
+  <!-- TOP NAV -->
+  <div class="top-nav">
+    <a href="/history" class="nav-link" id="navHistory"><i class="fa fa-clock-rotate-left"></i> My History</a>
+    <span id="userDisplay" class="user-name"></span>
+    <button class="btn-logout" onclick="Auth.logout()" title="Logout"><i class="fa fa-sign-out-alt"></i></button>
+  </div>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-icon" onclick="window.location.href='/app'" style="cursor:pointer">🌾</div>
+    <div class="header-text">
+      <h1 id="appTitle">AI Crop Advisor</h1>
+      <p class="tagline" id="tagline">Your personalised farming advisory</p>
+    </div>
+    <select id="language" class="lang-select" onchange="changeLang()">
+      <option value="en">🌐 English</option>
+      <option value="ta">தமிழ்</option>
+      <option value="te">తెలుగు</option>
+      <option value="kn">ಕನ್ನಡ</option>
+      <option value="ml">മലയാളം</option>
+      <option value="hi">हिंदी</option>
+    </select>
+  </header>
+
+  <!-- STEPS -->
+  <div class="steps">
+    <div class="step done"><div class="step-circle"><i class="fa fa-check"></i></div><span id="s1">Location</span></div>
+    <div class="step-line done"></div>
+    <div class="step done"><div class="step-circle"><i class="fa fa-check"></i></div><span id="s2">Soil</span></div>
+    <div class="step-line done"></div>
+    <div class="step active"><div class="step-circle">3</div><span id="s3">Results</span></div>
+    <div class="step-line"></div>
+    <div class="step"><div class="step-circle">4</div><span id="s4">Feedback</span></div>
+  </div>
+
+  <!-- 1. RECOMMENDED CROP CARD -->
+  <div class="result-card" id="cropCard">
+    <div class="result-badge" id="modelBadge">ML Model</div>
+    <div style="font-size:0.75rem;color:var(--gold);font-weight:600;text-transform:uppercase;letter-spacing:1px;" id="recCropHeader">Recommended Crop</div>
+    <div class="primary-crop-name" id="cropName">—</div>
+    <div class="crop-sub" id="cropSeason">—</div>
+  </div>
+
+  <!-- 2. SOIL HEALTH SCORE -->
+  <div class="card soil-card">
+    <div class="card-header"><span class="card-icon">🧪</span><h2 id="soilTitle">Soil Health Score</h2></div>
+    <div class="gauge-wrap">
+      <canvas id="gauge" width="220" height="120"></canvas>
+      <div class="gauge-score" id="gaugeScore">—</div>
+      <div class="gauge-label" id="gaugeLabel">Score</div>
+    </div>
+    <div id="soilTips" class="soil-tips"></div>
+  </div>
+
+  <!-- 3. INTERCROPPING RECOMMENDATION -->
+  <div class="card">
+    <div class="card-header"><span class="card-icon">🌿</span><h2 id="intercropTitle">Intercropping Advisory</h2></div>
+    <div class="intercrop-grid">
+      <div class="intercrop-card" onclick="switchCropContext('ic1')" style="cursor:pointer" title="Click to view advisory for Intercrop 1">
+        <div class="intercrop-label" id="ic1Lbl">Intercrop 1</div>
+        <div class="intercrop-name" id="ic1">—</div>
+        <div style="font-size:0.72rem;color:var(--gold);margin-top:6px;font-weight:500"><i class="fa fa-hand-pointer"></i> Click to view advisory</div>
+      </div>
+      <div class="intercrop-divider">+</div>
+      <div class="intercrop-card" onclick="switchCropContext('ic2')" style="cursor:pointer" title="Click to view advisory for Intercrop 2">
+        <div class="intercrop-label" id="ic2Lbl">Intercrop 2</div>
+        <div class="intercrop-name" id="ic2">—</div>
+        <div style="font-size:0.72rem;color:var(--gold);margin-top:6px;font-weight:500"><i class="fa fa-hand-pointer"></i> Click to view advisory</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CROP CONTEXT SELECTOR BAR -->
+  <div class="card crop-context-bar" style="background:linear-gradient(135deg, rgba(82,183,136,0.15), rgba(27,67,50,0.5));border:1px solid rgba(82,183,136,0.4);margin-bottom:1.25rem;padding:1.1rem;border-radius:var(--radius-md)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:0.75rem;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:1px" id="cropContextLbl">Farm Advisory Context</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#fff;margin-top:2px" id="advisoryContextBanner">Farm Advisory for Primary Crop: <span id="activeContextCropName" style="color:var(--green-light)">—</span></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="cropContextToggleGroup">
+        <button class="btn active-context-btn" id="btnContextMain" onclick="switchCropContext('main')" style="padding:8px 16px;font-size:0.85rem;border-radius:20px;display:flex;align-items:center;gap:6px;background:var(--green-light);color:#1b4332;font-weight:700;border:none;cursor:pointer">
+          <span>🌱</span> <span id="txtContextMain">Primary Crop</span>
+        </button>
+        <button class="btn" id="btnContextIC1" onclick="switchCropContext('ic1')" style="padding:8px 16px;font-size:0.85rem;border-radius:20px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.2);cursor:pointer">
+          <span>🌿</span> <span id="txtContextIC1">Intercrop 1</span>
+        </button>
+        <button class="btn" id="btnContextIC2" onclick="switchCropContext('ic2')" style="padding:8px 16px;font-size:0.85rem;border-radius:20px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.2);cursor:pointer">
+          <span>🌿</span> <span id="txtContextIC2">Intercrop 2</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 4. FERTILIZER ADVISORY -->
+  <div class="card">
+    <div class="card-header"><span class="card-icon">🧪</span><h2 id="fertTitle">Fertilizer Recommendation</h2></div>
+    <div class="detail-item" style="padding:1rem;background:rgba(255,255,255,0.05);border-radius:var(--radius-sm)">
+      <div class="detail-lbl" id="fertLbl">Recommended Combination</div>
+      <div class="detail-val" id="fert" style="font-size:1.1rem;color:var(--green-light);margin-top:4px">—</div>
+    </div>
+  </div>
+
+  <!-- 5. IRRIGATION SCHEDULE -->
+  <div class="card irr-card">
+    <div class="card-header"><span class="card-icon">💧</span><h2 id="irrTitle">Irrigation Schedule</h2></div>
+    <div class="irr-grid" id="irrigationGrid"></div>
+  </div>
+
+  <!-- 6. EXPECTED YIELD & PROFIT -->
+  <div class="card">
+    <div class="card-header"><span class="card-icon">💰</span><h2 id="econTitle">Expected Yield &amp; Profit</h2></div>
+    <div class="detail-row">
+      <div class="detail-item">
+        <div class="detail-lbl" id="profitLbl">Expected Profit / Acre</div>
+        <div class="detail-val" id="profit" style="color:var(--gold);font-size:1rem">—</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-lbl" id="yieldLbl">Estimated Yield / Acre</div>
+        <div class="detail-val" id="yieldVal" style="color:var(--green-light);font-size:1rem">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. DISEASE RISK -->
+  <div class="card disease-card">
+    <div class="card-header"><span class="card-icon">⚠️</span><h2 id="diseaseTitle">Disease Risk &amp; Prevention</h2></div>
+    <div id="diseaseList"></div>
+  </div>
+
+  <!-- 8. CROP CALENDAR -->
+  <div class="card cal-card">
+    <div class="card-header"><span class="card-icon">📅</span><h2 id="calTitle">Crop Calendar</h2></div>
+
+    <!-- SOWING DATE FORM -->
+    <div style="background:rgba(255,255,255,0.04);padding:1rem;border-radius:var(--radius-sm);margin-bottom:1.25rem;border:1px solid rgba(255,255,255,0.08)">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;align-items:end">
+        <div>
+          <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:600" id="calCropLbl">Select Crop</label>
+          <select id="calCropSelect" onchange="updateCropCalendarUI()" style="width:100%;padding:10px 14px;border-radius:8px;background:#1a3d2b;color:#fff;border:1px solid rgba(82,183,136,0.3);font-size:0.95rem;font-weight:500">
+            <option value="Rice">Rice</option>
+            <option value="Maize">Maize</option>
+            <option value="Groundnut">Groundnut</option>
+            <option value="Wheat">Wheat</option>
+            <option value="Cotton">Cotton</option>
+            <option value="Sugarcane">Sugarcane</option>
+            <option value="Banana">Banana</option>
+            <option value="Chickpea">Chickpea</option>
+            <option value="Tomato">Tomato</option>
+            <option value="Onion">Onion</option>
+            <option value="Chilli">Chilli</option>
+            <option value="Turmeric">Turmeric</option>
+            <option value="Soybean">Soybean</option>
+            <option value="Mango">Mango</option>
+            <option value="Coconut">Coconut</option>
+            <option value="Basil">Basil</option>
+            <option value="Marigold">Marigold</option>
+            <option value="Cowpea">Cowpea</option>
+            <option value="Mustard">Mustard</option>
+            <option value="Moong Bean">Moong Bean</option>
+            <option value="Garlic">Garlic</option>
+            <option value="Ginger">Ginger</option>
+            <option value="Carrot">Carrot</option>
+            <option value="Spinach">Spinach</option>
+            <option value="Coriander">Coriander</option>
+            <option value="Fenugreek">Fenugreek</option>
+            <option value="Azolla">Azolla</option>
+            <option value="Fish (Aquaculture)">Fish (Aquaculture)</option>
+            <option value="Sorghum">Sorghum</option>
+            <option value="Pearl Millet">Pearl Millet</option>
+            <option value="Castor">Castor</option>
+            <option value="Taro">Taro</option>
+            <option value="Linseed">Linseed</option>
+            <option value="Safflower">Safflower</option>
+            <option value="Papaya">Papaya</option>
+            <option value="Pepper">Pepper</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:600" id="calSowLbl">Sowing Date</label>
+          <input type="date" id="calSowDate" onchange="updateCropCalendarUI()" style="width:100%;padding:9px 14px;border-radius:8px;background:#1a3d2b;color:#fff;border:1px solid rgba(82,183,136,0.3);font-size:0.95rem;font-weight:500">
+        </div>
+        <div>
+          <button onclick="updateCropCalendarUI()" class="btn btn-primary" style="width:100%;padding:10px;font-size:0.9rem;border-radius:8px" id="calGenBtn">
+            <i class="fa fa-calendar-check"></i> <span id="calGenTxt">Generate Crop Calendar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALENDAR CONTENT DISPLAY -->
+    <div id="calendarContent"></div>
+  </div>
+
+  <!-- 9. LIVE AGMARKNET MANDI PRICE -->
+  <div class="card market-card" id="agmarknetCard">
+    <div class="card-header"><span class="card-icon">🏛️</span><h2 id="agmarknetTitle">Live Agmarknet Mandi Price</h2></div>
+    <div id="agmarknetContent" style="padding:0.25rem 0"></div>
+  </div>
+
+  <!-- 10. MARKET PRICE FORECAST -->
+  <div class="card market-card">
+    <div class="card-header"><span class="card-icon">📈</span><h2 id="marketTitle">Market Price Forecast</h2></div>
+    <div id="mktStatusWrap" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">
+      <span id="mktStatusLbl">Market Status</span>: <strong id="mktStatus" style="color:#fff">—</strong>
+    </div>
+    <div id="trendBar" class="trend-bar"></div>
+    <div class="chart-container"><canvas id="priceChart"></canvas></div>
+  </div>
+
+
+  <!-- 10. NEARBY MANDIS & FERTILIZER SHOPS MAP -->
+  <div class="card map-card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="card-icon">🗺️</span>
+        <h2 id="mapTitle">Nearby Mandis & Fertilizer Outlets</h2>
+      </div>
+      <div id="mapFilterTabs" style="display:flex;gap:6px">
+        <button class="btn active-filter-btn" id="btnMapAll" onclick="setMapFilter('all')" style="padding:4px 12px;font-size:0.75rem;border-radius:12px;background:var(--green-light);color:#1b4332;font-weight:700;border:none;cursor:pointer">Show All</button>
+        <button class="btn" id="btnMapMandis" onclick="setMapFilter('mandis')" style="padding:4px 12px;font-size:0.75rem;border-radius:12px;background:rgba(255,255,255,0.08);color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.2);cursor:pointer">🌾 Mandis</button>
+        <button class="btn" id="btnMapShops" onclick="setMapFilter('shops')" style="padding:4px 12px;font-size:0.75rem;border-radius:12px;background:rgba(255,255,255,0.08);color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.2);cursor:pointer">🧪 Fertilizer Shops</button>
+      </div>
+    </div>
+    <div id="leafletMap" class="leaflet-map"></div>
+    <div id="mandiList" class="mandi-list"></div>
+  </div>
+
+  <!-- 11. GOVERNMENT SCHEMES -->
+  <div class="card schemes-card">
+    <div class="card-header"><span class="card-icon">🏛️</span><h2 id="schemesTitle">Government Schemes</h2></div>
+    <div id="schemesList"></div>
+  </div>
+
+  <!-- 12. TOP 3 ALTERNATIVES -->
+  <div class="card">
+    <div class="card-header"><span class="card-icon">🏆</span><h2 id="top3Title">Top 3 Crop Alternatives</h2></div>
+    <div class="top3-grid" id="top3Grid"></div>
+  </div>
+
+  <!-- ACTIONS -->
+  <div class="action-row">
+    <button class="btn btn-report" onclick="downloadReport()" id="reportBtn">
+      <i class="fa fa-file-pdf"></i> <span id="reportTxt">Report</span>
+    </button>
+    <button class="btn btn-share" onclick="shareWhatsApp()" id="shareBtn">
+      <i class="fa-brands fa-whatsapp"></i> <span id="shareTxt">Share</span>
+    </button>
+    <button class="btn btn-outline" onclick="window.location.href='/history'" id="histBtn">
+      <i class="fa fa-clock-rotate-left"></i> <span id="histTxt">History</span>
+    </button>
+    <button class="btn btn-primary btn-next" onclick="goFeedback()" id="feedbackBtn">
+      <i class="fa fa-star"></i> <span id="nextTxt">Feedback</span>
+    </button>
+  </div>
+
+  <div style="height:2rem"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+Auth.guard();
+Auth.renderHeader();
+const T = {{ translations|tojson }};
+let lang = localStorage.getItem("cropLang") || "en";
+let R = null;
+let chartInst = null;
+let leafMap = null;
+
+function changeLang() {
+  lang = document.getElementById("language").value;
+  localStorage.setItem("cropLang", lang);
+  
+  // Headers & Step indicator
+  document.getElementById("appTitle").innerText       = I18n.tr("app_title", T);
+  document.getElementById("tagline").innerText        = I18n.tr("tagline", T);
+  document.getElementById("s1").innerText             = I18n.tr("step1", T);
+  document.getElementById("s2").innerText             = I18n.tr("step2", T);
+  document.getElementById("s3").innerText             = I18n.tr("step3", T);
+  document.getElementById("s4").innerText             = I18n.tr("step4", T);
+  document.getElementById("navHistory").innerHTML     = '<i class="fa fa-clock-rotate-left"></i> ' + I18n.tr("my_history", T);
+  
+  // Card Titles
+  document.getElementById("recCropHeader").innerText = I18n.tr("rec_crop", T);
+  document.getElementById("soilTitle").innerText     = I18n.tr("soil_health", T);
+  document.getElementById("intercropTitle").innerText= I18n.tr("intercrop_1", T) + " & " + I18n.tr("intercrop_2", T);
+  document.getElementById("ic1Lbl").innerText        = I18n.tr("intercrop_1", T);
+  document.getElementById("ic2Lbl").innerText        = I18n.tr("intercrop_2", T);
+  document.getElementById("fertTitle").innerText     = I18n.tr("fertilizer", T);
+  document.getElementById("fertLbl").innerText       = I18n.tr("fertilizer", T) + " Recommendation";
+  document.getElementById("irrTitle").innerText      = I18n.tr("irrigation", T);
+  document.getElementById("econTitle").innerText     = I18n.tr("expected_yield", T) + " & " + I18n.tr("expected_profit", T);
+  document.getElementById("profitLbl").innerText    = I18n.tr("expected_profit", T);
+  document.getElementById("yieldLbl").innerText     = I18n.tr("expected_yield", T);
+  document.getElementById("diseaseTitle").innerText  = I18n.tr("disease_risk", T);
+  document.getElementById("calTitle").innerText      = I18n.tr("crop_calendar", T);
+  document.getElementById("marketTitle").innerText   = I18n.tr("market_forecast", T);
+  document.getElementById("mktStatusLbl").innerText  = I18n.tr("market_status_label", T);
+  document.getElementById("mapTitle").innerText      = I18n.tr("nearby_mandis", T);
+  document.getElementById("schemesTitle").innerText  = I18n.tr("gov_schemes", T);
+  document.getElementById("top3Title").innerText     = I18n.tr("top3_alt", T);
+  
+  // Action Buttons
+  document.getElementById("reportTxt").innerText     = I18n.tr("report", T);
+  document.getElementById("shareTxt").innerText      = I18n.tr("share", T);
+  document.getElementById("histTxt").innerText       = I18n.tr("history", T);
+  document.getElementById("nextTxt").innerText       = I18n.tr("submit_feedback", T);
+
+  if (R) renderAll(R);
+}
+
+window.onload = function() {
+  document.getElementById("language").value = lang;
+  R = JSON.parse(localStorage.getItem("cropResult") || "null");
+  if (!R) { window.location.href = "/app"; return; }
+  changeLang();
+};
+
+let activeCropContext = "main";
+
+function renderAll(r) {
+  renderCrop(r);
+  renderGauge(r.soil_score, r.soil_tips);
+  renderTop3(r.top3);
+  renderMap(r.nearby_mandis, r.nearby_fertilizer_shops, r.farm_lat, r.farm_lon);
+
+  // Set context button text
+  const txtMain = document.getElementById("txtContextMain");
+  const txtIC1  = document.getElementById("txtContextIC1");
+  const txtIC2  = document.getElementById("txtContextIC2");
+  if (txtMain) txtMain.innerText = I18n.tr("primary_crop_title", T) + ": " + I18n.crop(r.crop, T);
+  if (txtIC1)  txtIC1.innerText  = I18n.tr("intercrop_1_title", T) + ": " + I18n.intercrop(r.intercrop_1, T);
+  if (txtIC2)  txtIC2.innerText  = I18n.tr("intercrop_2_title", T) + ": " + I18n.intercrop(r.intercrop_2, T);
+
+  switchCropContext(activeCropContext || "main");
+}
+
+function getFallbackAdvisory(cropName) {
+  return {
+    crop: cropName,
+    fertilizer: "FYM + NPK",
+    season: "Kharif/Rabi",
+    profit_per_acre: "₹30,000–₹50,000",
+    yield_est: 1200,
+    estimated_profit: null,
+    estimated_revenue: null,
+    water_need: "medium",
+    irrigation: { frequency: "Twice a week", amount_per_session: "25–30 mm" },
+    disease_risks: [{ type: "No Risk Detected", level: "Low", advice: "Maintain good field hygiene" }],
+    market_data: { available: false },
+    market_status: "Normal",
+    market_trend: "stable",
+    price_history: [2000, 2010, 2020, 2015, 2030, 2025, 2040, 2035, 2050, 2045, 2060, 2055],
+    current_price: 2055,
+    next_month_price: 2070,
+    calendar: null,
+    gov_schemes: ["PM-Kisan", "NHM"]
+  };
+}
+
+function switchCropContext(type) {
+  if (!R) return;
+  activeCropContext = type;
+
+  const btnMain = document.getElementById("btnContextMain");
+  const btnIC1  = document.getElementById("btnContextIC1");
+  const btnIC2  = document.getElementById("btnContextIC2");
+
+  [btnMain, btnIC1, btnIC2].forEach(b => {
+    if (b) {
+      b.style.background = "rgba(255,255,255,0.08)";
+      b.style.color = "#fff";
+      b.style.border = "1px solid rgba(255,255,255,0.2)";
+      b.style.fontWeight = "600";
+    }
+  });
+
+  let adv = null;
+  let bannerText = "";
+
+  if (type === "ic1") {
+    adv = R.intercrop_1_advisory || getFallbackAdvisory(R.intercrop_1);
+    if (btnIC1) {
+      btnIC1.style.background = "var(--green-light)";
+      btnIC1.style.color = "#1b4332";
+      btnIC1.style.fontWeight = "700";
+      btnIC1.style.border = "none";
+    }
+    bannerText = I18n.tr("advisory_context_intercrop", T) + ": <span style='color:var(--green-light)'>" + I18n.intercrop(R.intercrop_1, T) + "</span>";
+  } else if (type === "ic2") {
+    adv = R.intercrop_2_advisory || getFallbackAdvisory(R.intercrop_2);
+    if (btnIC2) {
+      btnIC2.style.background = "var(--green-light)";
+      btnIC2.style.color = "#1b4332";
+      btnIC2.style.fontWeight = "700";
+      btnIC2.style.border = "none";
+    }
+    bannerText = I18n.tr("advisory_context_intercrop", T) + ": <span style='color:var(--green-light)'>" + I18n.intercrop(R.intercrop_2, T) + "</span>";
+  } else {
+    adv = R.main_advisory || R;
+    if (btnMain) {
+      btnMain.style.background = "var(--green-light)";
+      btnMain.style.color = "#1b4332";
+      btnMain.style.fontWeight = "700";
+      btnMain.style.border = "none";
+    }
+    bannerText = I18n.tr("advisory_context_primary", T) + ": <span style='color:var(--green-light)'>" + I18n.crop(R.crop, T) + "</span>";
+  }
+
+  const bannerEl = document.getElementById("advisoryContextBanner");
+  if (bannerEl) bannerEl.innerHTML = bannerText;
+
+  renderFertilizer(adv);
+  renderIrrigation(adv.irrigation);
+  renderDiseases(adv.disease_risks);
+  renderEcon(adv);
+  renderAgmarknet(adv.market_data);
+  renderMarket(adv);
+  renderCalendarForCrop(adv);
+  renderSchemes(adv.gov_schemes);
+}
+
+function renderCrop(r) {
+  document.getElementById("cropName").innerText   = I18n.crop(r.crop, T);
+  document.getElementById("cropSeason").innerText = I18n.season(r.season, T);
+  document.getElementById("modelBadge").innerText = r.model_used === "ML" ? "🤖 ML Model" : "📋 Rule-Based";
+  document.getElementById("ic1").innerText        = I18n.intercrop(r.intercrop_1, T);
+  document.getElementById("ic2").innerText        = I18n.intercrop(r.intercrop_2, T);
+}
+
+function renderFertilizer(adv) {
+  document.getElementById("fertTitle").innerText = I18n.tr("fertilizer", T) + " — " + I18n.crop(adv.crop, T);
+  document.getElementById("fertLbl").innerText   = I18n.tr("fertilizer", T) + " Recommendation (" + I18n.crop(adv.crop, T) + ")";
+  document.getElementById("fert").innerText      = I18n.fertilizer(adv.fertilizer, T);
+}
+
+function renderEcon(adv) {
+  document.getElementById("econTitle").innerText = I18n.tr("expected_yield", T) + " & " + I18n.tr("expected_profit", T) + " — " + I18n.crop(adv.crop, T);
+  if (adv.estimated_profit !== undefined && adv.estimated_profit !== null) {
+    document.getElementById("profitLbl").innerText = I18n.tr("estimated_profit", T) + " / Acre (" + I18n.crop(adv.crop, T) + ")";
+    document.getElementById("profit").innerHTML    = adv.profit_per_acre + 
+      `<div style="font-size:0.75rem;color:var(--text-muted);font-weight:normal;margin-top:2px">(${I18n.tr("estimated_revenue", T)}: ₹${Number(adv.estimated_revenue).toLocaleString('en-IN')})</div>`;
+  } else {
+    document.getElementById("profitLbl").innerText = I18n.tr("expected_profit", T) + " / Acre (" + I18n.crop(adv.crop, T) + ")";
+    document.getElementById("profit").innerText     = adv.profit_per_acre;
+  }
+  document.getElementById("yieldVal").innerText   = adv.yield_est + " kg/acre (" + (adv.yield_est/100).toFixed(1) + " qtl/acre)";
+  document.getElementById("mktStatus").innerText  = I18n.marketStatus(adv.market_status, T);
+}
+
+function renderCalendarForCrop(adv) {
+  const selectEl = document.getElementById("calCropSelect");
+  if (selectEl && adv && adv.crop) {
+    selectEl.value = adv.crop;
+  }
+  updateCropCalendarUI();
+}
+
+
+function renderAgmarknet(m) {
+  const container = document.getElementById("agmarknetContent");
+  const titleEl   = document.getElementById("agmarknetTitle");
+  if (titleEl) titleEl.innerText = I18n.tr("agmarknet_price_title", T);
+  if (!container) return;
+
+  m = m || {};
+  if (m.reason === "non_mandi") {
+    container.innerHTML = `
+      <div style="background:rgba(82,183,136,0.08);border:1px solid rgba(82,183,136,0.3);padding:1rem;border-radius:var(--radius-sm);color:#95d5b2;font-size:0.9rem;text-align:center">
+        ℹ️ Mandi price tracking is not applicable for this bio-intercrop (on-farm green manure / aquaculture).
+      </div>`;
+    return;
+  }
+
+  if (m.available) {
+    container.innerHTML = `
+      <div style="background:rgba(255,255,255,0.04);padding:1rem;border-radius:var(--radius-sm);border:1px solid rgba(82,183,136,0.3)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">${I18n.tr("mandi_market", T)}</div>
+            <div style="font-size:1.1rem;font-weight:600;color:#fff">${m.market} ${m.state ? '(' + m.state + ')' : ''}</div>
+          </div>
+          <div style="background:rgba(82,183,136,0.15);color:var(--green-light);padding:4px 10px;border-radius:12px;font-size:0.8rem;font-weight:600">
+            ${I18n.tr("source", T)}: ${I18n.tr("agmarknet_source", T)}
+          </div>
+        </div>
+
+        <div style="margin-bottom:1rem;background:rgba(82,183,136,0.1);padding:1rem;border-radius:var(--radius-sm);border-left:4px solid var(--green-light)">
+          <div style="font-size:0.8rem;color:var(--text-muted)">${I18n.tr("modal_price", T)}</div>
+          <div style="font-size:1.6rem;font-weight:700;color:var(--gold);margin:2px 0">₹${Number(m.modal_price).toLocaleString('en-IN')} <span style="font-size:0.9rem;font-weight:400;color:var(--text-muted)">/ quintal</span></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;font-size:0.85rem">
+          <div style="background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:6px">
+            <span style="color:var(--text-muted);display:block;font-size:0.75rem">${I18n.tr("min_price", T)}</span>
+            <strong style="color:#fff">₹${Number(m.min_price).toLocaleString('en-IN')}</strong> / qtl
+          </div>
+          <div style="background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:6px">
+            <span style="color:var(--text-muted);display:block;font-size:0.75rem">${I18n.tr("max_price", T)}</span>
+            <strong style="color:#fff">₹${Number(m.max_price).toLocaleString('en-IN')}</strong> / qtl
+          </div>
+          <div style="background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:6px">
+            <span style="color:var(--text-muted);display:block;font-size:0.75rem">${I18n.tr("commodity", T)}</span>
+            <strong style="color:#fff">${m.commodity}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:6px">
+            <span style="color:var(--text-muted);display:block;font-size:0.75rem">${I18n.tr("variety", T)} / ${I18n.tr("grade", T)}</span>
+            <strong style="color:#fff">${m.variety || 'Standard'} / ${m.grade || 'FAQ'}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:6px">
+            <span style="color:var(--text-muted);display:block;font-size:0.75rem">${I18n.tr("arrival_qty", T)}</span>
+            <strong style="color:#fff">${m.arrival_quantity && m.arrival_quantity !== 'N/A' ? m.arrival_quantity + ' qtl' : 'N/A'}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:6px">
+            <span style="color:var(--text-muted);display:block;font-size:0.75rem">${I18n.tr("market_date", T)}</span>
+            <strong style="color:#fff">${m.market_date}</strong>
+          </div>
+        </div>
+      </div>`;
+  } else {
+    container.innerHTML = `
+      <div style="background:rgba(231,111,81,0.08);border:1px solid rgba(231,111,81,0.25);padding:1rem;border-radius:var(--radius-sm);color:#f4a261;font-size:0.9rem;text-align:center">
+        ⚠️ ${I18n.tr("live_market_unavailable", T)}
+      </div>`;
+  }
+}
+
+function renderGauge(score, tips) {
+  const canvas = document.getElementById("gauge");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, 220, 120);
+  const cx=110, cy=110, r=90, start=Math.PI, end=2*Math.PI;
+  // Background arc
+  ctx.beginPath(); ctx.arc(cx,cy,r,start,end);
+  ctx.strokeStyle="rgba(255,255,255,0.1)"; ctx.lineWidth=18; ctx.stroke();
+  // Score arc
+  const pct = Math.min(score,100)/100;
+  const color = pct<0.4?"#e76f51":pct<0.7?"#e9c46a":"#52b788";
+  ctx.beginPath(); ctx.arc(cx,cy,r,start, start + pct*Math.PI);
+  ctx.strokeStyle=color; ctx.lineWidth=18; ctx.lineCap="round"; ctx.stroke();
+  document.getElementById("gaugeScore").innerText = score + "/100";
+  document.getElementById("gaugeLabel").innerText = I18n.tr("score", T);
+  document.getElementById("gaugeLabel").style.color = color;
+  const tipsEl = document.getElementById("soilTips");
+  tipsEl.innerHTML = (tips||[]).map(t => `<div class="soil-tip">💡 ${I18n.soilTip(t, T)}</div>`).join("") ||
+                     `<div class="soil-tip" style="color:#52b788">✅ ${I18n.soilTip("Soil health is good!", T)}</div>`;
+}
+
+const CROP_STAGES_JS = {
+  "Rice": {
+    duration_days: 120, season: "Kharif",
+    stages: [
+      { name: "Sowing & Nursery", days: 25, explanation: "Prepare seedbed, sow seeds, and maintain consistent nursery moisture for healthy seedling emergence." },
+      { name: "Vegetative Growth", days: 35, explanation: "Transplant seedlings to main field, maintain 2-5cm standing water, and apply initial nitrogen fertilizer." },
+      { name: "Reproductive & Panicle", days: 30, explanation: "Panicle initiation and flowering stage. Ensure peak water availability and protect against stem borer." },
+      { name: "Ripening & Maturity", days: 30, explanation: "Grain filling and ripening. Drain field water 10 days prior to harvest when grains turn golden." }
+    ]
+  },
+  "Maize": {
+    duration_days: 100, season: "Kharif/Rabi",
+    stages: [
+      { name: "Sowing & Germination", days: 20, explanation: "Sow seeds 4-5cm deep in well-drained soil. Ensure optimal warmth and soil moisture." },
+      { name: "Vegetative Stage", days: 30, explanation: "Rapid leaf elongation and stem growth. Apply NPK fertilizer top dressing and earthing up." },
+      { name: "Tasseling & Silking", days: 25, explanation: "Flowering and pollination phase. Critical stage requiring adequate irrigation and pest control." },
+      { name: "Grain Filling & Maturity", days: 25, explanation: "Kernels mature and harden. Harvest when cob husk turns dry and pale yellow." }
+    ]
+  },
+  "Groundnut": {
+    duration_days: 110, season: "Kharif",
+    stages: [
+      { name: "Sowing & Seedling", days: 20, explanation: "Plant quality pods/seeds in friable soil. Ensure moist seedbed for uniform germination." },
+      { name: "Vegetative Growth", days: 35, explanation: "Canopy development and branching. Apply gypsum to supply calcium for pod development." },
+      { name: "Pegging & Pod Formation", days: 30, explanation: "Flower pegs enter soil to form underground pods. Avoid deep cultivation to protect pegs." },
+      { name: "Pod Maturity & Harvest", days: 25, explanation: "Pods mature and harden. Harvest when internal shell lining turns dark brown." }
+    ]
+  },
+  "Wheat": {
+    duration_days: 120, season: "Rabi",
+    stages: [
+      { name: "Sowing & Crown Root", days: 25, explanation: "Sow in cool moist soil. Provide first irrigation at Crown Root Initiation (CRI) stage (~21 days)." },
+      { name: "Tillering & Jointing", days: 35, explanation: "Tillers develop and stems elongate. Apply top dressing nitrogen and control weeds." },
+      { name: "Heading & Flowering", days: 30, explanation: "Earheads emerge and flowering begins. Maintain soil moisture to avoid grain reduction." },
+      { name: "Grain Filling & Maturity", days: 30, explanation: "Dough stage to hard grain. Harvest when crop turns golden and moisture drops to 12-14%." }
+    ]
+  },
+  "Cotton": {
+    duration_days: 160, season: "Kharif",
+    stages: [
+      { name: "Sowing & Seedling", days: 30, explanation: "Sow seeds in ridges or flat beds. Monitor early weed competition and seedling vigor." },
+      { name: "Vegetative Branching", days: 45, explanation: "Main stem and sympodial branch development. Apply split nitrogen doses." },
+      { name: "Squaring & Flowering", days: 45, explanation: "Square (flower bud) initiation and white/pink flower bloom. Monitor for bollworm infestation." },
+      { name: "Boll Opening & Picking", days: 40, explanation: "Bolls mature and open exposing clean lint. Perform multiple pickings on sunny dry days." }
+    ]
+  },
+  "Sugarcane": {
+    duration_days: 360, season: "Annual",
+    stages: [
+      { name: "Planting & Germination", days: 45, explanation: "Plant 2-3 bud setts in furrows. Maintain soil moisture for eye bud sprouting." },
+      { name: "Tillering Stage", days: 75, explanation: "Shoot proliferation and root system expansion. Perform earthing up and weed removal." },
+      { name: "Grand Growth Period", days: 150, explanation: "Rapid cane elongation and internode thickening. Peak water and nutrient requirement stage." },
+      { name: "Ripening & Harvest", days: 90, explanation: "Sucrose synthesis and accumulation in stalk. Stop irrigation 2-3 weeks before harvesting." }
+    ]
+  },
+  "Banana": {
+    duration_days: 330, season: "Annual",
+    stages: [
+      { name: "Planting & Establishment", days: 60, explanation: "Plant disease-free suckers/tissue plants in pits. Provide organic mulching and shade." },
+      { name: "Vegetative Canopy", days: 120, explanation: "Rapid broad leaf expansion and pseudostem thickening. Regular fertigation and desuckering." },
+      { name: "Bunch Shooting", days: 60, explanation: "Inflorescence emerges from pseudostem heart. Provide bamboo propping support to heavy bunches." },
+      { name: "Bunch Development & Harvest", days: 90, explanation: "Banana fingers swell and round off. Harvest mature green bunches before yellowing." }
+    ]
+  },
+  "Chickpea": {
+    duration_days: 100, season: "Rabi",
+    stages: [
+      { name: "Sowing & Germination", days: 20, explanation: "Sow in residual moisture after monsoon. Ensure proper aeration to prevent root rot." },
+      { name: "Vegetative & Nipping", days: 30, explanation: "Branching phase. Nip terminal buds at 30-45 days to encourage bushy lateral growth." },
+      { name: "Flowering & Pod Set", days: 25, explanation: "Pod initiation. Protect crop from Helicoverpa pod borer using pheromone traps." },
+      { name: "Pod Ripening & Harvest", days: 25, explanation: "Pods turn straw yellow and leaves drop. Harvest when seeds rattle inside dry pods." }
+    ]
+  },
+  "Tomato": {
+    duration_days: 110, season: "Rabi/Kharif",
+    stages: [
+      { name: "Transplanting & Nursery", days: 20, explanation: "Transplant 25-day old seedlings to raised beds. Provide staking support early for vine crops." },
+      { name: "Vegetative Branching", days: 30, explanation: "Stem growth and leaf canopy expansion. Apply balanced NPK fertilizer and weeding." },
+      { name: "Flowering & Fruit Set", days: 30, explanation: "Yellow flower cluster bloom and green fruit formation. Maintain uniform moisture to prevent blossom drop." },
+      { name: "Fruit Ripening & Harvest", days: 30, explanation: "Fruits change from green to breaker/red mature stage. Harvest in multiple pickings every 3-4 days." }
+    ]
+  },
+  "Onion": {
+    duration_days: 130, season: "Rabi",
+    stages: [
+      { name: "Transplanting & Early Growth", days: 25, explanation: "Transplant healthy nursery seedlings in shallow furrows. Keep soil weed-free." },
+      { name: "Foliage Development", days: 40, explanation: "Tubular leaf production. Adequate nitrogen and micro-irrigation promote top growth." },
+      { name: "Bulb Initiation & Swelling", days: 35, explanation: "Bulbs begin expanding below soil surface. Increase potash application for firmness." },
+      { name: "Neck Fall & Harvest", days: 30, explanation: "Foliage turns yellow and necks break over naturally. Pull bulbs and cure in shade." }
+    ]
+  },
+  "Chilli": {
+    duration_days: 140, season: "Kharif",
+    stages: [
+      { name: "Transplanting & Establishment", days: 25, explanation: "Plant nursery seedlings on ridges. Apply organic basal manure and light watering." },
+      { name: "Vegetative Growth", days: 40, explanation: "Branching and dense canopy growth. Spray micronutrients and monitor sucking pests." },
+      { name: "Flowering & Pod Set", days: 45, explanation: "White flowers bloom continuously and green chilli pods develop. Regulate irrigation." },
+      { name: "Pod Maturity & Harvesting", days: 30, explanation: "Chilli pods mature to deep green or red. Perform selective hand picking every 7-10 days." }
+    ]
+  },
+  "Turmeric": {
+    duration_days: 240, season: "Kharif",
+    stages: [
+      { name: "Planting & Sprouting", days: 45, explanation: "Plant mother rhizomes on ridges. Cover with heavy green leaf mulch to preserve moisture." },
+      { name: "Vegetative Tillering", days: 90, explanation: "Tillers and broad green leaves emerge. Apply top dressing fertilizers and earthing up." },
+      { name: "Rhizome Expansion", days: 60, explanation: "Primary and secondary finger rhizomes enlarge in soil. Keep root zone well aerated." },
+      { name: "Foliage Drying & Harvest", days: 45, explanation: "Leaves turn dry and straw yellow. Dig out mature rhizomes carefully without bruising." }
+    ]
+  },
+  "Soybean": {
+    duration_days: 100, season: "Kharif",
+    stages: [
+      { name: "Sowing & Germination", days: 20, explanation: "Sow Rhizobium-treated seeds 3-4cm deep. Ensure good soil moisture for quick emergence." },
+      { name: "Vegetative Growth", days: 30, explanation: "Trifoliate leaf growth and root nodule nitrogen fixation. Control early broadleaf weeds." },
+      { name: "Flowering & Pod Formation", days: 25, explanation: "Small purple/white flowers blossom into pods. Critical irrigation window for yield." },
+      { name: "Pod Maturity & Harvest", days: 25, explanation: "Pods turn yellow-brown and leaves shed. Harvest when grain moisture drops to 13-15%." }
+    ]
+  },
+  "Mango": {
+    duration_days: 150, season: "Annual",
+    stages: [
+      { name: "Bud Break & Flowering", days: 35, explanation: "Panicles bloom with fragrant flowers. Protect against powdery mildew and mango hoppers." },
+      { name: "Fruit Set & Pea Stage", days: 35, explanation: "Young fruits set at pea/marble size. Apply light irrigation to prevent fruit drop." },
+      { name: "Fruit Growth & Enlargement", days: 50, explanation: "Fruits expand rapidly and stone hardens inside. Apply potassium for sweetness and size." },
+      { name: "Maturity & Harvest", days: 30, explanation: "Fruit shoulders widen and skin color turns pale yellow-green. Harvest with pedicel attached." }
+    ]
+  },
+  "Coconut": {
+    duration_days: 365, season: "Annual",
+    stages: [
+      { name: "Spathe & Button Stage", days: 90, explanation: "Flower spathe opens and female buttons are pollinated naturally by bees and wind." },
+      { name: "Tender Nut Water Stage", days: 90, explanation: "Young coconut shell fills with sweet nourishing tender coconut water." },
+      { name: "Kernel Solidification", days: 90, explanation: "Endosperm (copra meat) forms and thickens along inner shell wall." },
+      { name: "Full Maturity & Harvest", days: 95, explanation: "Nuts turn brown and dry. Harvest mature coconuts every 45-60 days throughout the year." }
+    ]
+  },
+  "Basil": {
+    duration_days: 90, season: "Kharif/Rabi",
+    stages: [
+      { name: "Sowing & Germination", days: 15, explanation: "Sow seeds in warm, moist seedbed. Ensure light cover over seeds." },
+      { name: "Vegetative Canopy", days: 30, explanation: "Rapid leaf and branch growth. Pinch terminal buds for bushier growth." },
+      { name: "Flowering & Essential Oil Peak", days: 25, explanation: "Inflorescence blooms. High essential oil concentration in leaves." },
+      { name: "Harvest Phase", days: 20, explanation: "Harvest tender shoots and leaves. Repeat cuttings every 2-3 weeks." }
+    ]
+  },
+  "Marigold": {
+    duration_days: 120, season: "Annual",
+    stages: [
+      { name: "Nursery & Transplanting", days: 20, explanation: "Sow seeds in nursery beds and transplant 25-day old seedlings to main field." },
+      { name: "Vegetative Growth", days: 35, explanation: "Branching and stem elongation. Apply balanced NPK fertilizer." },
+      { name: "Budding & Flowering", days: 40, explanation: "Flower buds open into full blooms. Maintain light moisture." },
+      { name: "Flower Plucking", days: 25, explanation: "Pluck fully opened flower heads every 3-4 days." }
+    ]
+  },
+  "Cowpea": {
+    duration_days: 90, season: "Kharif",
+    stages: [
+      { name: "Sowing & Seedling", days: 15, explanation: "Sow seeds 3cm deep. Rhizobium inoculation promotes root nodulation." },
+      { name: "Vegetative Branching", days: 30, explanation: "Vigorous vine/bush growth. Suppresses weeds and enriches soil nitrogen." },
+      { name: "Flowering & Pod Set", days: 25, explanation: "Flowers bloom and tender green pods form rapidly." },
+      { name: "Pod Harvest & Maturity", days: 20, explanation: "Pick green pods for vegetable use or dry pods for pulse grain." }
+    ]
+  },
+  "Mustard": {
+    duration_days: 110, season: "Rabi",
+    stages: [
+      { name: "Sowing & Seedling", days: 20, explanation: "Sow in fine seedbed in October. Thin seedlings to 10cm spacing." },
+      { name: "Vegetative Rosette", days: 30, explanation: "Leaves expand in rosette pattern. Apply top dressing nitrogen and sulphur." },
+      { name: "Flowering & Siliqua Set", days: 35, explanation: "Bright yellow flowers bloom. Irrigate during flowering and pod filling." },
+      { name: "Pod Ripening & Harvest", days: 25, explanation: "Pods turn yellow-brown. Harvest early morning to avoid seed shattering." }
+    ]
+  },
+  "Moong Bean": {
+    duration_days: 70, season: "Kharif/Rabi",
+    stages: [
+      { name: "Sowing & Emergence", days: 15, explanation: "Sow in warm soil after rains or pre-sowing irrigation." },
+      { name: "Vegetative Growth", days: 20, explanation: "Rapid trifoliate leaf production and nitrogen fixation." },
+      { name: "Flowering & Podding", days: 20, explanation: "Yellow flowers bloom continuously. Critical water requirement period." },
+      { name: "Pod Maturity & Harvest", days: 15, explanation: "Pods mature to black/brown. Harvest before pods split open." }
+    ]
+  },
+  "Garlic": {
+    duration_days: 130, season: "Rabi",
+    stages: [
+      { name: "Clove Planting & Sprouting", days: 25, explanation: "Plant healthy cloves root-down. Water lightly for uniform root sprouting." },
+      { name: "Foliage Development", days: 40, explanation: "Flat green leaf growth. Apply NPK fertilizer top dressing." },
+      { name: "Bulb Enlargement", days: 35, explanation: "Cloves swell into mature bulb underground. Stop nitrogen application." },
+      { name: "Foliage Drying & Harvest", days: 30, explanation: "Tops turn 60% yellow and fall over. Dig out bulbs and cure in shade." }
+    ]
+  },
+  "Ginger": {
+    duration_days: 240, season: "Kharif",
+    stages: [
+      { name: "Rhizome Planting", days: 45, explanation: "Plant seed rhizomes in raised beds with heavy leaf mulch." },
+      { name: "Tillering & Foliage", days: 90, explanation: "Shoots emerge and tillers develop. Apply organic compost and earthing up." },
+      { name: "Rhizome Swelling", days: 60, explanation: "Knobby rhizomes enlarge underground. Maintain soil moisture." },
+      { name: "Leaf Drying & Harvest", days: 45, explanation: "Leaves dry and turn yellow. Harvest fresh ginger carefully." }
+    ]
+  },
+  "Carrot": {
+    duration_days: 90, season: "Rabi",
+    stages: [
+      { name: "Sowing & Thinning", days: 20, explanation: "Sow seeds thinly on ridges. Thin seedlings to 5cm gap." },
+      { name: "Foliage Canopy", days: 30, explanation: "Feathery leaf growth. Keep soil loose and free of stones." },
+      { name: "Root Swelling", days: 25, explanation: "Taproot thickens and develops deep orange carotene color." },
+      { name: "Root Harvest", days: 15, explanation: "Pull crisp mature carrots when crown diameter reaches 2-3cm." }
+    ]
+  },
+  "Spinach": {
+    duration_days: 50, season: "Rabi/Kharif",
+    stages: [
+      { name: "Sowing & Germination", days: 10, explanation: "Sow seeds 1.5cm deep. Keep seedbed moist." },
+      { name: "Rapid Leaf Expansion", days: 20, explanation: "Broad succulent leaves develop. Apply light nitrogen application." },
+      { name: "Multiple Cut Harvests", days: 15, explanation: "Cut outer leaves 3-4cm above ground. Regenerates for 2-3 pickings." },
+      { name: "Final Harvest", days: 5, explanation: "Harvest complete plant before bolting/flowering starts." }
+    ]
+  },
+  "Coriander": {
+    duration_days: 80, season: "Rabi",
+    stages: [
+      { name: "Sowing & Germination", days: 15, explanation: "Crush split seeds and sow in moist furrows." },
+      { name: "Vegetative Leaf Phase", days: 25, explanation: "Aromatic green leaves grow. Harvest green leaves or allow for seeds." },
+      { name: "Flowering & Seed Formation", days: 25, explanation: "Small umbrella-like white flowers bloom into green globular seeds." },
+      { name: "Seed Harvest", days: 15, explanation: "Seeds turn brownish-yellow. Cut plants and dry in shade." }
+    ]
+  },
+  "Fenugreek": {
+    duration_days: 80, season: "Rabi",
+    stages: [
+      { name: "Sowing & Seedling", days: 15, explanation: "Sow seeds in well-prepared flat beds." },
+      { name: "Foliage Development", days: 25, explanation: "Trifoliate green leaves grow rapidly. High nitrogen response." },
+      { name: "Flowering & Pod Formation", days: 25, explanation: "Yellowish flowers form slender curved pods." },
+      { name: "Pod Maturity & Harvest", days: 15, explanation: "Pods turn yellow-brown. Harvest dry seeds." }
+    ]
+  },
+  "Azolla": {
+    duration_days: 30, season: "Annual",
+    stages: [
+      { name: "Pond Inoculation", days: 5, explanation: "Inoculate fresh Azolla culture into shallow shaded water pond with superphosphate." },
+      { name: "Rapid Frond Multiplication", days: 10, explanation: "Dual biomass multiplication every 3-5 days across water surface." },
+      { name: "Mat Density Peak", days: 10, explanation: "Dense green bio-mat covers pond. Nitrogen-fixing cyanobacteria active." },
+      { name: "Daily Harvest Cycle", days: 5, explanation: "Scoop out 30-50% biomass daily for green manure or cattle/poultry feed." }
+    ]
+  },
+  "Fish (Aquaculture)": {
+    duration_days: 180, season: "Annual",
+    stages: [
+      { name: "Pond Prep & Fingerling Stocking", days: 30, explanation: "Prepare pond with lime & organic manure. Stock quality fish fingerlings." },
+      { name: "Early Growth & Feeding", days: 60, explanation: "Feed high-protein pelleted aqua feed daily. Monitor dissolved oxygen." },
+      { name: "Weight Gain & Water Quality", days: 60, explanation: "Fish double body weight. Maintain water transparency 30-40cm." },
+      { name: "Harvesting Phase", days: 30, explanation: "Drag net pond to harvest table-size fish (500g-1kg+)." }
+    ]
+  },
+  "Sorghum": {
+    duration_days: 110, season: "Kharif",
+    stages: [
+      { name: "Sowing & Seedling", days: 20, explanation: "Sow seeds in moist seedbed. Thin to single plant per hill." },
+      { name: "Vegetative Growth", days: 35, explanation: "Rapid stalk elongation. Apply nitrogen top dressing." },
+      { name: "Heading & Flowering", days: 30, explanation: "Panicle emerges from flag leaf boot. Protect from shoot fly." },
+      { name: "Grain Filling & Harvest", days: 25, explanation: "Grain hardens to dough stage. Harvest when black layer forms at kernel base." }
+    ]
+  },
+  "Pearl Millet": {
+    duration_days: 90, season: "Kharif",
+    stages: [
+      { name: "Sowing & Germination", days: 15, explanation: "Sow in dryland/drought-prone soil. Thin early." },
+      { name: "Tillering & Canopy", days: 30, explanation: "Profuse tillering. Highly drought-tolerant growth stage." },
+      { name: "Earhead Emergence", days: 25, explanation: "Cylindrical earheads bloom. Protect from ergot disease." },
+      { name: "Grain Maturity & Harvest", days: 20, explanation: "Earheads dry to grayish-brown. Cut earheads and thresh." }
+    ]
+  },
+  "Castor": {
+    duration_days: 150, season: "Kharif",
+    stages: [
+      { name: "Sowing & Emergence", days: 25, explanation: "Sow large seeds 5cm deep with wide row spacing." },
+      { name: "Vegetative Stem Growth", days: 45, explanation: "Thick woody stem and large palmate leaves develop." },
+      { name: "Spike Flowering", days: 45, explanation: "Primary and secondary flower spikes bloom continuously." },
+      { name: "Capsule Harvest", days: 35, explanation: "Harvest mature spiny capsules in 2-3 pickings as spikes dry." }
+    ]
+  },
+  "Taro": {
+    duration_days: 180, season: "Kharif",
+    stages: [
+      { name: "Cormel Planting", days: 30, explanation: "Plant healthy cormels in moist fertile soil." },
+      { name: "Vegetative Canopy", days: 60, explanation: "Broad elephant-ear leaves emerge. Earthing up required." },
+      { name: "Corm Expansion", days: 60, explanation: "Underground main corm and side cormels swell." },
+      { name: "Foliage Yellowing & Harvest", days: 30, explanation: "Leaves turn yellow and wither. Dig out corms carefully." }
+    ]
+  },
+  "Linseed": {
+    duration_days: 110, season: "Rabi",
+    stages: [
+      { name: "Sowing & Germination", days: 20, explanation: "Sow in fine rabi seedbed in rows." },
+      { name: "Branching Phase", days: 35, explanation: "Stem branches into leafy canopy. Low water requirement." },
+      { name: "Flowering & Capsule Set", days: 30, explanation: "Blue/white flowers bloom into globular seed capsules." },
+      { name: "Harvest & Threshing", days: 25, explanation: "Capsules turn shiny brown. Harvest and thresh flax seeds." }
+    ]
+  },
+  "Safflower": {
+    duration_days: 120, season: "Rabi",
+    stages: [
+      { name: "Sowing & Rosette", days: 20, explanation: "Sow in deep black soil with good subsoil moisture." },
+      { name: "Rosette to Elongation", days: 35, explanation: "Spiny leaves form dense rosette before stem elongates." },
+      { name: "Flowering Head Stage", days: 35, explanation: "Bright yellow/orange flower heads bloom. Highly drought hardiness." },
+      { name: "Maturity & Harvest", days: 30, explanation: "Plant dries completely. Harvest in early morning to avoid prickles." }
+    ]
+  },
+  "Papaya": {
+    duration_days: 270, season: "Annual",
+    stages: [
+      { name: "Transplanting & Establishment", days: 45, explanation: "Plant 45-day nursery seedlings in 2x2m pits with FYM." },
+      { name: "Vegetative Stem Growth", days: 90, explanation: "Single unbranched trunk with large palm-like leaves grows." },
+      { name: "Flowering & Fruit Set", days: 75, explanation: "Flowers emerge in leaf axils. Thin excess crowded fruits." },
+      { name: "Fruit Swelling & Harvest", days: 60, explanation: "Fruits swell and skin shows yellow tinge at apex. Harvest carefully." }
+    ]
+  },
+  "Pepper": {
+    duration_days: 210, season: "Annual",
+    stages: [
+      { name: "Spike Emergence", days: 30, explanation: "Flower spikes emerge from vine nodes trained on support trees." },
+      { name: "Berry Set & Development", days: 60, explanation: "Green pepper berries form along trailing spike." },
+      { name: "Berry Enlargement & Starch", days: 60, explanation: "Berries grow full and turn dark green. Regular shade & moisture." },
+      { name: "Harvest & Sun Drying", days: 60, explanation: "Harvest when 1-2 berries on spike turn orange-red. Sun dry to black pepper." }
+    ]
+  }
+};
+
+function formatDateDisplay(d) {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const day = String(d.getDate()).padStart(2, '0');
+  const mon = months[d.getMonth()];
+  const yr = d.getFullYear();
+  return `${day} ${mon} ${yr}`;
+}
+
+function formatMonthYearDisplay(d) {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function updateCropCalendarUI() {
+  const selectEl = document.getElementById("calCropSelect");
+  const dateEl   = document.getElementById("calSowDate");
+  const container = document.getElementById("calendarContent");
+  if (!selectEl || !dateEl || !container) return;
+
+  const crop = selectEl.value || (R ? R.crop : "Rice");
+  let sowStr = dateEl.value;
+  if (!sowStr) {
+    sowStr = new Date().toISOString().split("T")[0];
+    dateEl.value = sowStr;
+  }
+
+  let sowDate = new Date(sowStr + "T00:00:00");
+  if (isNaN(sowDate.getTime())) {
+    sowDate = new Date();
+    sowStr = sowDate.toISOString().split("T")[0];
+    dateEl.value = sowStr;
+  }
+
+  const cropData = CROP_STAGES_JS[crop] || CROP_STAGES_JS["Rice"];
+  const typicalSeason = cropData.season || (R && R.crop === crop ? R.season : "Kharif (Monsoon)");
+
+  let currStart = new Date(sowDate);
+  const stages = [];
+  const stageIcons = ["🌱", "🌿", "🌾", "🌼", "🌾"];
+
+  cropData.stages.forEach((stg, idx) => {
+    let dur = stg.days;
+    let endDate = new Date(currStart);
+    endDate.setDate(endDate.getDate() + dur - 1);
+
+    stages.push({
+      icon: stageIcons[idx % stageIcons.length],
+      name: stg.name,
+      days: dur,
+      startDateStr: formatDateDisplay(currStart),
+      endDateStr: formatDateDisplay(endDate),
+      explanation: stg.explanation
+    });
+
+    currStart = new Date(endDate);
+    currStart.setDate(currStart.getDate() + 1);
+  });
+
+  let harvestDate = new Date(sowDate);
+  harvestDate.setDate(harvestDate.getDate() + cropData.duration_days);
+
+  const sowDisplay = formatDateDisplay(sowDate);
+  const harvestDisplay = formatDateDisplay(harvestDate);
+  const harvestMonthYr = formatMonthYearDisplay(harvestDate);
+
+  let weatherAdvisory = "";
+  if (R && R.weatherData) {
+    const w = R.weatherData;
+    if (w.rainfall > 150) {
+      weatherAdvisory = I18n.tr("weather_advisory_high_rain", T).replace("{rainfall}", w.rainfall);
+    } else if (w.temperature > 32) {
+      weatherAdvisory = I18n.tr("weather_advisory_high_temp", T).replace("{temp}", w.temperature);
+    } else {
+      weatherAdvisory = I18n.tr("weather_advisory_normal", T).replace("{temp}", w.temperature).replace("{humidity}", w.humidity);
+    }
+  }
+
+  container.innerHTML = `
+    <div style="background:rgba(82,183,136,0.08);border-left:4px solid var(--green-light);padding:1rem;border-radius:var(--radius-sm);margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">${I18n.tr("typical_season_label", T)}</div>
+        <div style="font-size:1.1rem;font-weight:600;color:#fff">${I18n.season(typicalSeason, T)}</div>
+      </div>
+      <div>
+        <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">${I18n.tr("total_duration_label", T)}</div>
+        <div style="font-size:1.1rem;font-weight:600;color:var(--gold)">${cropData.duration_days} ${I18n.tr("days_unit", T)} (~${Math.round(cropData.duration_days/30)} ${I18n.tr("months_unit", T)})</div>
+      </div>
+    </div>
+
+    <!-- STAGES TIMELINE -->
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:1.25rem">
+      <!-- SOWING CARD -->
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(82,183,136,0.3);padding:0.9rem 1.1rem;border-radius:var(--radius-sm);display:flex;align-items:center;gap:14px">
+        <div style="font-size:1.8rem;background:rgba(82,183,136,0.15);width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center">🌱</div>
+        <div style="flex:1">
+          <div style="font-size:0.75rem;color:var(--green-light);font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${I18n.tr("actual_sowing_date_label", T)}</div>
+          <div style="font-size:1.1rem;font-weight:700;color:#fff">${sowDisplay}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">${I18n.tr("crop_label", T)}: ${I18n.crop(crop, T)}</div>
+        </div>
+      </div>
+
+      <!-- STAGES LIST -->
+      ${stages.map((stg, i) => `
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:0.9rem 1.1rem;border-radius:var(--radius-sm);display:flex;align-items:flex-start;gap:14px">
+          <div style="font-size:1.5rem;background:rgba(233,196,106,0.12);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:2px">${stg.icon}</div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:2px">
+              <div style="font-size:1rem;font-weight:600;color:#fff">${I18n.tr("stage_prefix", T)} ${i+1}: ${I18n.stageName(stg.name, T)}</div>
+              <div style="font-size:0.8rem;background:rgba(255,255,255,0.08);color:var(--gold);padding:2px 8px;border-radius:10px;font-weight:600">${stg.days} ${I18n.tr("days_unit", T)}</div>
+            </div>
+            <div style="font-size:0.85rem;color:var(--green-light);font-weight:600;margin-bottom:4px">📅 ${stg.startDateStr} – ${stg.endDateStr}</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);line-height:1.4">${I18n.stageExplanation(stg.explanation, T)}</div>
+          </div>
+        </div>
+      `).join('')}
+
+      <!-- ESTIMATED HARVEST CARD -->
+      <div style="background:rgba(233,196,106,0.1);border:1px solid rgba(233,196,106,0.4);padding:1rem 1.2rem;border-radius:var(--radius-sm);display:flex;align-items:center;gap:14px;border-left:4px solid var(--gold)">
+        <div style="font-size:2rem;background:rgba(233,196,106,0.2);width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center">🚜</div>
+        <div style="flex:1">
+          <div style="font-size:0.75rem;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${I18n.tr("estimated_harvest_label", T)}</div>
+          <div style="font-size:1.3rem;font-weight:700;color:#fff">${I18n.tr("around_prefix", T)} ${harvestDisplay} <span style="font-size:0.95rem;color:var(--gold)">(${harvestMonthYr})</span></div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;line-height:1.4">
+            ℹ️ ${I18n.tr("harvest_disclaimer", T)}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${weatherAdvisory ? `
+      <div style="background:rgba(21,101,192,0.12);border:1px solid rgba(21,101,192,0.3);padding:0.8rem 1rem;border-radius:var(--radius-sm);color:#90caf9;font-size:0.85rem;display:flex;align-items:center;gap:10px">
+        ${weatherAdvisory}
+      </div>
+    ` : ''}
+  `;
+}
+
+function renderCalendar(cal) {
+  const selectEl = document.getElementById("calCropSelect");
+  const dateEl   = document.getElementById("calSowDate");
+  const cropLblEl = document.getElementById("calCropLbl");
+  const sowLabelEl = document.getElementById("calSowLbl");
+  const genBtnEl   = document.getElementById("calGenTxt");
+
+  if (cropLblEl)  cropLblEl.innerText  = I18n.tr("select_crop_label", T);
+  if (sowLabelEl) sowLabelEl.innerText = I18n.tr("sowing_date_label", T);
+  if (genBtnEl)   genBtnEl.innerText   = I18n.tr("generate_cal_btn", T);
+
+  if (selectEl && R && R.crop) {
+    selectEl.value = R.crop;
+  }
+  if (dateEl && (!dateEl.value || dateEl.value === "")) {
+    const todayStr = new Date().toISOString().split("T")[0];
+    dateEl.value = cal && cal.sow_date ? cal.sow_date : todayStr;
+  }
+  updateCropCalendarUI();
+}
+
+function renderIrrigation(irr) {
+  if (!irr) return;
+  document.getElementById("irrigationGrid").innerHTML = `
+    <div class="irr-item"><div class="irr-val">${I18n.irrigationFreq(irr.frequency, T)}</div><div class="irr-lbl">${I18n.tr("frequency", T)}</div></div>
+    <div class="irr-item"><div class="irr-val">${irr.amount_per_session}</div><div class="irr-lbl">${I18n.tr("amount_session", T)}</div></div>`;
+}
+
+function renderDiseases(risks) {
+  document.getElementById("diseaseList").innerHTML = (risks||[]).map(d => `
+    <div class="disease-item risk-${(d.level||'low').toLowerCase()}">
+      <div class="disease-header">
+        <span class="disease-type">${I18n.diseaseType(d.type, T)}</span>
+        <span class="risk-badge">${I18n.riskLevel(d.level, T)}</span>
+      </div>
+      <div class="disease-advice">${I18n.diseaseAdvice(d.advice, T)}</div>
+    </div>`).join("");
+}
+
+function renderTop3(top3) {
+  document.getElementById("top3Grid").innerHTML = (top3||[]).map((c,i) => `
+    <div class="top3-card ${i===0?'top3-best':''}">
+      ${i===0?`<div class="top3-badge">⭐ ${I18n.tr("best", T)}</div>`:''}
+      <div class="top3-name">${I18n.crop(c.crop, T)}</div>
+      <div class="top3-row"><span>📅</span><span>${I18n.season(c.season, T)}</span></div>
+      <div class="top3-row"><span>💰</span><span>${c.profit}</span></div>
+      <div class="top3-row"><span>💧</span><span>${I18n.waterNeed(c.water, T)}</span></div>
+    </div>`).join("");
+}
+
+function renderMarket(r) {
+  if (r.has_historical_trend === false || !r.has_historical_trend) {
+    document.getElementById("trendBar").innerHTML = `<span style="color:var(--text-muted);font-size:0.85rem">ℹ️ ${I18n.tr("market_trend_unavailable", T)}</span>`;
+  } else {
+    const trend = r.market_trend || "stable";
+    const trendText = I18n.marketTrend(trend, T);
+    const cls   = "trend-" + trend;
+    document.getElementById("trendBar").innerHTML =
+      `<span class="${cls}">${trendText}</span> ${I18n.tr("current", T)}: ₹${r.current_price}/q &nbsp; ${I18n.tr("next_month", T)}: ₹${r.next_month_price}/q`;
+  }
+
+  
+  const months = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"];
+  const canvas = document.getElementById("priceChart");
+  if (!canvas) return;
+
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(canvas, {
+    type:"line",
+    data:{
+      labels: months,
+      datasets:[
+        {label: `Price ₹/q`, data: r.price_history || [], borderColor:"#52b788",
+         backgroundColor:"rgba(82,183,136,0.1)", tension:0.4, fill:true, pointRadius:3},
+        {label: I18n.tr("next_month", T), data: [...Array(11).fill(null), r.current_price, r.next_month_price],
+         borderColor:"#e9c46a", borderDash:[6,3], tension:0.4, pointRadius:3},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:"rgba(255,255,255,0.7)"}},
+               tooltip:{backgroundColor:"#1a3d2b",titleColor:"#95d5b2",bodyColor:"#fff"}},
+      scales:{
+        x:{grid:{color:"rgba(255,255,255,0.07)"},ticks:{color:"rgba(255,255,255,0.6)"}},
+        y:{grid:{color:"rgba(255,255,255,0.07)"},ticks:{color:"rgba(255,255,255,0.6)",
+           callback:v=>"₹"+v.toLocaleString("en-IN")}},
+      }
+    }
+  });
+}
+
+let currentMapFilter = "all";
+
+function setMapFilter(type) {
+  currentMapFilter = type;
+  ["btnMapAll", "btnMapMandis", "btnMapShops"].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) {
+      b.style.background = "rgba(255,255,255,0.08)";
+      b.style.color = "#fff";
+      b.style.border = "1px solid rgba(255,255,255,0.2)";
+      b.style.fontWeight = "600";
+    }
+  });
+  const activeId = type === "mandis" ? "btnMapMandis" : type === "shops" ? "btnMapShops" : "btnMapAll";
+  const activeBtn = document.getElementById(activeId);
+  if (activeBtn) {
+    activeBtn.style.background = "var(--green-light)";
+    activeBtn.style.color = "#1b4332";
+    activeBtn.style.fontWeight = "700";
+    activeBtn.style.border = "none";
+  }
+  if (R) renderMap(R.nearby_mandis, R.nearby_fertilizer_shops, R.farm_lat, R.farm_lon);
+}
+
+function renderMap(mandis, shops, farmLat, farmLon) {
+  const useLat = parseFloat(localStorage.getItem("cropLat")) || farmLat;
+  const useLon = parseFloat(localStorage.getItem("cropLon")) || farmLon;
+
+  if (!useLat || !useLon || isNaN(useLat) || isNaN(useLon)) {
+    document.getElementById("mandiList").innerHTML = `<div class="empty-map" style="padding:1rem;color:var(--text-muted);text-align:center">${I18n.tr("no_mandis", T)}</div>`;
+    return;
+  }
+
+  const calcDist = (list) => (list || []).map(item => {
+    if (item.lat && item.lng) {
+      const R_earth = 6371;
+      const dLat = (item.lat - useLat) * Math.PI / 180;
+      const dLon = (item.lng - useLon) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(useLat * Math.PI / 180) * Math.cos(item.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      item.distance_km = +(R_earth * 2 * Math.asin(Math.sqrt(a))).toFixed(1);
+    }
+    return item;
+  }).filter(item => item.lat && item.lng).sort((a, b) => a.distance_km - b.distance_km);
+
+  const updatedMandis = calcDist(mandis);
+  const updatedShops = calcDist(shops);
+
+  let htmlList = "";
+  if (currentMapFilter === "all" || currentMapFilter === "mandis") {
+    if (updatedMandis.length) {
+      htmlList += `<div style="font-weight:700;color:var(--green-light);font-size:0.85rem;margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.5px">🌾 ${I18n.tr("nearby_mandis", T)}</div>`;
+      htmlList += updatedMandis.map(m => `
+        <div class="mandi-item" style="background:rgba(255,255,255,0.03);margin-bottom:6px;padding:8px 12px;border-radius:8px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="mandi-icon" style="font-size:18px">🏪</div>
+            <div>
+              <div class="mandi-name" style="font-weight:600;color:#fff">${m.name}</div>
+              <div class="mandi-dist" style="font-size:0.75rem;color:var(--text-muted)">📍 ${m.distance_km} ${I18n.tr("km_away", T)}</div>
+            </div>
+          </div>
+          <a class="mandi-map" href="https://www.google.com/maps/dir/${useLat},${useLon}/${m.lat},${m.lng}" target="_blank" style="padding:4px 10px;background:rgba(82,183,136,0.15);color:var(--green-light);border-radius:12px;font-size:0.75rem;font-weight:600;text-decoration:none">
+            <i class="fa fa-diamond-turn-right"></i> ${I18n.tr("directions", T)}</a>
+        </div>`).join("");
+    }
+  }
+
+  if (currentMapFilter === "all" || currentMapFilter === "shops") {
+    if (updatedShops.length) {
+      htmlList += `<div style="font-weight:700;color:#e9c46a;font-size:0.85rem;margin:12px 0 4px;text-transform:uppercase;letter-spacing:0.5px">🧪 Nearby Fertilizer & Agri Outlets</div>`;
+      htmlList += updatedShops.map(s => `
+        <div class="mandi-item" style="background:rgba(255,255,255,0.03);margin-bottom:6px;padding:8px 12px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="mandi-icon" style="font-size:18px">🧪</div>
+            <div>
+              <div class="mandi-name" style="font-weight:600;color:#fff">${s.name}</div>
+              <div style="font-size:0.75rem;color:var(--green-light)">${s.type}</div>
+              <div class="mandi-dist" style="font-size:0.75rem;color:var(--text-muted)">📍 ${s.distance_km} ${I18n.tr("km_away", T)}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${s.phone ? `<a href="tel:${s.phone}" style="padding:4px 8px;background:rgba(233,196,106,0.2);color:#e9c46a;border-radius:12px;font-size:0.75rem;font-weight:600;text-decoration:none"><i class="fa fa-phone"></i> Call</a>` : ''}
+            <a class="mandi-map" href="https://www.google.com/maps/dir/${useLat},${useLon}/${s.lat},${s.lng}" target="_blank" style="padding:4px 10px;background:rgba(82,183,136,0.15);color:var(--green-light);border-radius:12px;font-size:0.75rem;font-weight:600;text-decoration:none">
+              <i class="fa fa-diamond-turn-right"></i> ${I18n.tr("directions", T)}</a>
+          </div>
+        </div>`).join("");
+    }
+  }
+
+  document.getElementById("mandiList").innerHTML = htmlList || `<div class="empty-map" style="padding:1rem;color:var(--text-muted);text-align:center">${I18n.tr("no_mandis", T)}</div>`;
+
+  setTimeout(() => {
+    const mapDiv = document.getElementById("leafletMap");
+    if (!mapDiv) return;
+    if (leafMap) { leafMap.remove(); leafMap = null; }
+    leafMap = L.map("leafletMap", { scrollWheelZoom: true }).setView([useLat, useLon], 11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(leafMap);
+
+    const yourFarmTxt = I18n.tr("your_farm", T);
+    const dragMeTxt = I18n.tr("drag_me", T);
+    const fi = L.divIcon({ className: "", html: `<div style="background:#1a3d2b;color:#fff;padding:5px 9px;border-radius:16px;font-size:11px;font-weight:700;border:2px solid #52b788;">🌾 ${yourFarmTxt}<br><small style="opacity:.7">${dragMeTxt}</small></div>`, iconAnchor: [45, 20] });
+    const fm = L.marker([useLat, useLon], { icon: fi, draggable: true }).addTo(leafMap);
+    fm.bindPopup(`<b>🌾 ${yourFarmTxt}</b><br>${useLat.toFixed(5)}, ${useLon.toFixed(5)}`).openPopup();
+
+    fm.on("dragend", e => {
+      const { lat, lng } = e.target.getLatLng();
+      localStorage.setItem("cropLat", lat);
+      localStorage.setItem("cropLon", lng);
+      showToast("📍 Farm location updated!");
+      renderMap(mandis, shops, lat, lng);
+    });
+
+    const allBounds = [[useLat, useLon]];
+
+    if (currentMapFilter === "all" || currentMapFilter === "mandis") {
+      updatedMandis.forEach(m => {
+        allBounds.push([m.lat, m.lng]);
+        L.polyline([[useLat, useLon], [m.lat, m.lng]], { color: "#e9c46a", weight: 1.5, dashArray: "6 4", opacity: .6 }).addTo(leafMap);
+        const mi = L.divIcon({ className: "", html: `<div style="background:#e9c46a;color:#1a3d2b;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #c9a227;">🏪</div>`, iconAnchor: [16, 16] });
+        L.marker([m.lat, m.lng], { icon: mi }).addTo(leafMap)
+          .bindPopup(`<b>🏪 ${m.name}</b><br>📍 ${m.distance_km} ${I18n.tr("km_away", T)}<br><a href="https://www.google.com/maps/dir/${useLat},${useLon}/${m.lat},${m.lng}" target="_blank" style="color:#2d6a4f;font-weight:600">🧭 ${I18n.tr("directions", T)}</a>`);
+      });
+    }
+
+    if (currentMapFilter === "all" || currentMapFilter === "shops") {
+      updatedShops.forEach(s => {
+        allBounds.push([s.lat, s.lng]);
+        L.polyline([[useLat, useLon], [s.lat, s.lng]], { color: "#52b788", weight: 1.5, dashArray: "4 4", opacity: .7 }).addTo(leafMap);
+        const si = L.divIcon({ className: "", html: `<div style="background:#52b788;color:#1b4332;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #2d6a4f;">🧪</div>`, iconAnchor: [16, 16] });
+        L.marker([s.lat, s.lng], { icon: si }).addTo(leafMap)
+          .bindPopup(`<b>🧪 ${s.name}</b><br><small style="color:#52b788">${s.type}</small><br>📍 ${s.distance_km} ${I18n.tr("km_away", T)}<br>${s.phone ? `<a href="tel:${s.phone}" style="color:#e9c46a;font-weight:600">📞 Call Store</a> &nbsp; ` : ''}<a href="https://www.google.com/maps/dir/${useLat},${useLon}/${s.lat},${s.lng}" target="_blank" style="color:#2d6a4f;font-weight:600">🧭 ${I18n.tr("directions", T)}</a>`);
+      });
+    }
+
+    if (allBounds.length > 1) leafMap.fitBounds(allBounds, { padding: [30, 30] });
+  }, 200);
+}
+
+const SCHEME_URLS = {
+  "PM-Kisan":"https://pmkisan.gov.in",
+  "PMFBY":"https://pmfby.gov.in",
+  "NFSM":"https://nfsm.gov.in",
+  "MSP Scheme":"https://agriwelfare.gov.in",
+  "Cotton Tech Mission":"https://agriwelfare.gov.in",
+  "Sugarcane Dev Scheme":"https://agriwelfare.gov.in",
+  "NHM":"https://midh.gov.in",
+  "Pulses Dev":"https://nfsm.gov.in",
+  "Spices Board":"https://www.indianspices.com",
+  "Coconut Dev Board":"https://www.coconutboard.gov.in",
+};
+
+function renderSchemes(schemes) {
+  document.getElementById("schemesList").innerHTML = (schemes||[]).map(s => `
+    <a class="scheme-item" href="${SCHEME_URLS[s]||'#'}" target="_blank">
+      <i class="fa fa-indian-rupee-sign"></i> ${I18n.scheme(s, T)}
+      <i class="fa fa-external-link" style="margin-left:auto;font-size:10px"></i>
+    </a>`).join("");
+}
+
+function downloadReport() {
+  if (!R) return;
+  const blob = new Blob([JSON.stringify(R, null, 2)], {type:"application/json"});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = `crop_advisory_${R.crop}_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function shareWhatsApp() {
+  if (!R) return;
+  const msg = `🌾 *AI Crop Advisory*\n\n✅ Crop: ${I18n.crop(R.crop, T)}\n🌿 Intercrop: ${I18n.intercrop(R.intercrop_1, T)} + ${I18n.intercrop(R.intercrop_2, T)}\n💰 Profit: ${R.profit_per_acre}\n📦 Yield: ${R.yield_est} kg/acre\n🧪 Fertiliser: ${I18n.fertilizer(R.fertilizer, T)}\n💧 Irrigation: ${I18n.irrigationFreq(R.irrigation.frequency, T)}\n🌍 Soil Score: ${R.soil_score}/100\n\n_AI Crop Advisor_`;
+  window.open("https://wa.me/?text="+encodeURIComponent(msg),"_blank");
+}
+
+function goFeedback() {
+  if (R) {
+    localStorage.setItem("feedbackPredId", R._id||"");
+    localStorage.setItem("feedbackCrop", R.crop||"");
+  }
+  window.location.href="/feedback";
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.innerText = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
+}
+</script>
+</body>
+</html>

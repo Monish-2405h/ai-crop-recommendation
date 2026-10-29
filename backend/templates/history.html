@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Crop Advisor — My History</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body>
+<div class="bg-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+<div class="app">
+  <header class="header">
+    <div class="header-icon" onclick="window.location.href='/app'" style="cursor:pointer">🌾</div>
+    <div class="header-text">
+      <h1 id="histTitle">My Prediction History</h1>
+      <p class="tagline" id="histSub">Loading...</p>
+    </div>
+    <select id="language" class="lang-select" onchange="changeLang()">
+      <option value="en">🌐 English</option>
+      <option value="ta">தமிழ்</option>
+      <option value="te">తెలుగు</option>
+      <option value="kn">ಕನ್ನಡ</option>
+      <option value="ml">മലയാളം</option>
+      <option value="hi">हिंदी</option>
+    </select>
+  </header>
+
+  <div class="top-nav" style="margin-bottom:1rem">
+    <a href="/app" class="btn btn-primary" style="font-size:0.85rem"><i class="fa fa-plus"></i> <span id="newPredTxt">New Prediction</span></a>
+    <span id="userDisplay" class="user-name"></span>
+    <button class="btn-logout" onclick="Auth.logout()"><i class="fa fa-sign-out-alt"></i></button>
+  </div>
+
+  <div id="historyList" class="history-list">
+    <div class="loading-spinner"><div class="spinner"></div><p>Loading your predictions...</p></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/static/js/auth.js"></script>
+<script>
+Auth.guard();
+Auth.renderHeader();
+const T = {{ translations|tojson }};
+let lang = localStorage.getItem("cropLang") || "en";
+let userPreds = [];
+
+function changeLang() {
+  lang = document.getElementById("language").value;
+  localStorage.setItem("cropLang", lang);
+  document.getElementById("histTitle").innerText   = I18n.tr("my_history", T);
+  document.getElementById("newPredTxt").innerText  = I18n.tr("next", T) + " " + I18n.tr("step3", T);
+  renderHistoryList();
+}
+
+window.onload = async function() {
+  document.getElementById("language").value = lang;
+  try {
+    const resp = await Auth.fetch("/api/predictions/user");
+    userPreds = await resp.json();
+    changeLang();
+  } catch(e) {
+    document.getElementById("historyList").innerHTML = `<div class="empty-history"><p>Failed to load prediction history</p></div>`;
+  }
+};
+
+function renderHistoryList() {
+  const sub = document.getElementById("histSub");
+  sub.innerText = userPreds.length + " " + I18n.tr("history", T);
+  const list = document.getElementById("historyList");
+  if (!userPreds.length) {
+    list.innerHTML = `<div class="empty-history"><div class="empty-icon">🌱</div><h3>No predictions yet</h3><p>Get your first AI crop recommendation</p><a href="/app" class="btn btn-primary">Start Now</a></div>`;
+    return;
+  }
+  list.innerHTML = userPreds.map(p => `
+    <div class="history-card" onclick="viewPred('${p._id}')">
+      <div class="hist-crop">${I18n.crop(p.crop, T)}</div>
+      <div class="hist-meta">
+        <span><i class="fa fa-location-dot"></i> ${p.location||"—"}</span>
+        <span><i class="fa fa-gauge"></i> ${I18n.tr("soil_health", T)}: ${p.soil_score}/100</span>
+        <span><i class="fa fa-weight-scale"></i> ${p.yield_est} kg/acre</span>
+        <span class="hist-badge">${p.model_used||"ML"}</span>
+      </div>
+      <div class="hist-profit">${p.profit_per_acre||"—"}</div>
+      <div class="hist-date">${new Date(p.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</div>
+      <button class="hist-feedback-btn" onclick="event.stopPropagation();giveFeedback('${p._id}','${p.crop}')">
+        <i class="fa fa-star"></i> ${I18n.tr("submit_feedback", T)}
+      </button>
+    </div>`).join("");
+}
+
+function viewPred(id) {
+  Auth.fetch("/api/predictions/" + id).then(r => r.json()).then(pred => {
+    localStorage.setItem("cropResult", JSON.stringify(pred));
+    window.location.href = "/results";
+  });
+}
+
+function giveFeedback(predId, crop) {
+  localStorage.setItem("feedbackPredId", predId);
+  localStorage.setItem("feedbackCrop", crop);
+  window.location.href = "/feedback";
+}
+</script>
+</body>
+</html>

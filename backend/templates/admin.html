@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Crop Advisor — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body>
+<div class="bg-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+<div class="app">
+  <header class="header">
+    <div class="header-icon">🛡️</div>
+    <div class="header-text"><h1 id="adminTitle">Admin Dashboard</h1><p class="tagline">AI Crop Advisor — Control Panel</p></div>
+    <div class="header-user">
+      <span id="userDisplay"></span>
+      <span id="userRole"></span>
+      <button class="btn-logout" onclick="Auth.logout()"><i class="fa fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </header>
+
+  <!-- Not logged in as admin — show login form -->
+  <div id="adminLoginWrap" style="display:none">
+    <div class="card">
+      <div class="card-header"><span class="card-icon">🔐</span><h2>Admin Login</h2></div>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem">This area is restricted to administrators only.</p>
+      <form onsubmit="doAdminLogin(event)">
+        <div class="input-group">
+          <label><i class="fa fa-envelope"></i> Admin Email</label>
+          <input type="email" id="adminEmail" required placeholder="admin@example.com">
+        </div>
+        <div class="input-group">
+          <label><i class="fa fa-lock"></i> Password</label>
+          <input type="password" id="adminPw" required placeholder="Admin password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full"><i class="fa fa-shield-halved"></i> Login as Admin</button>
+      </form>
+      <div style="text-align:center;margin-top:1rem"><a href="/" style="color:var(--text-muted);font-size:0.82rem">← Back to user login</a></div>
+    </div>
+  </div>
+
+  <!-- Admin dashboard content -->
+  <div id="adminDash" style="display:none">
+    <!-- Stats cards -->
+    <div class="admin-stats-row">
+      <div class="admin-stat-card"><div class="ast-icon">👥</div><div class="ast-val" id="statUsers">—</div><div class="ast-lbl">Total Users</div></div>
+      <div class="admin-stat-card"><div class="ast-icon">🌾</div><div class="ast-val" id="statPreds">—</div><div class="ast-lbl">Predictions</div></div>
+      <div class="admin-stat-card"><div class="ast-icon">⭐</div><div class="ast-val" id="statFb">—</div><div class="ast-lbl">Feedback</div></div>
+      <div class="admin-stat-card" style="cursor:pointer" onclick="exportCSV()">
+        <div class="ast-icon">⬇️</div><div class="ast-val">CSV</div><div class="ast-lbl">Export Data</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="switchTab('users',this)">Users</button>
+      <button class="admin-tab" onclick="switchTab('predictions',this)">Predictions</button>
+      <button class="admin-tab" onclick="switchTab('feedback',this)">Feedback</button>
+    </div>
+
+    <!-- Users table -->
+    <div id="tabUsers" class="admin-table-wrap">
+      <div class="loading-spinner"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Predictions table -->
+    <div id="tabPredictions" class="admin-table-wrap" style="display:none">
+      <div class="loading-spinner"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Feedback table -->
+    <div id="tabFeedback" class="admin-table-wrap" style="display:none">
+      <div class="loading-spinner"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="/static/js/auth.js"></script>
+<script>
+async function exportCSV() {
+  const resp = await Auth.fetch("/api/admin/export-training-data");
+  if (!resp || !resp.ok) { showToast("Export failed. Please try again.", "error"); return; }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "training_data.csv"; a.click();
+  URL.revokeObjectURL(url);
+  showToast("CSV downloaded successfully!", "success");
+}
+
+window.onload = async function() {
+  if (!Auth.isLoggedIn() || !Auth.isAdmin()) {
+    document.getElementById("adminLoginWrap").style.display="block";
+    return;
+  }
+  showAdminDash();
+};
+
+async function doAdminLogin(e) {
+  e.preventDefault();
+  const resp=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email:document.getElementById("adminEmail").value,password:document.getElementById("adminPw").value})});
+  const d=await resp.json();
+  if (!resp.ok) { showToast(d.error||"Login failed","error"); return; }
+  if (d.user.role!=="admin") { showToast("Not an admin account","error"); return; }
+  Auth.save(d.token, d.user);
+  document.getElementById("adminLoginWrap").style.display="none";
+  showAdminDash();
+}
+
+async function showAdminDash() {
+  Auth.renderHeader();
+  document.getElementById("adminDash").style.display="block";
+  try {
+    const s = await (await Auth.fetch("/api/admin/stats")).json();
+    document.getElementById("statUsers").innerText = s.users || 0;
+    document.getElementById("statPreds").innerText = s.predictions || 0;
+    document.getElementById("statFb").innerText    = s.feedback || 0;
+    loadUsers();
+  } catch(e) {
+    showToast("Failed to load admin stats", "error");
+  }
+}
+
+async function loadUsers() {
+  try {
+    const data = await (await Auth.fetch("/api/admin/users")).json();
+    document.getElementById("tabUsers").innerHTML=`
+      <table class="admin-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
+        <tbody>${data.map(u=>`
+          <tr>
+            <td>${u.name}</td>
+            <td>${u.email}</td>
+            <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+            <td>${new Date(u.createdAt).toLocaleDateString("en-IN")}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    document.getElementById("tabUsers").innerHTML = `<div style="padding:1rem;color:var(--text-muted)">Failed to load users list.</div>`;
+  }
+}
+
+async function loadPredictions() {
+  try {
+    const data = await (await Auth.fetch("/api/admin/predictions")).json();
+    document.getElementById("tabPredictions").innerHTML=`
+      <table class="admin-table">
+        <thead><tr><th>Crop</th><th>User ID</th><th>Location</th><th>Soil</th><th>Model</th><th>Date</th></tr></thead>
+        <tbody>${data.map(p=>`
+          <tr>
+            <td><strong>${p.crop}</strong></td>
+            <td class="mono">${p.userId?.slice(-6)||"—"}</td>
+            <td>${p.location||"—"}</td>
+            <td>${p.soil_score||"—"}/100</td>
+            <td>${p.model_used||"—"}</td>
+            <td>${new Date(p.createdAt).toLocaleDateString("en-IN")}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    document.getElementById("tabPredictions").innerHTML = `<div style="padding:1rem;color:var(--text-muted)">Failed to load predictions.</div>`;
+  }
+}
+
+async function loadFeedback() {
+  try {
+    const data = await (await Auth.fetch("/api/admin/feedback")).json();
+    document.getElementById("tabFeedback").innerHTML=`
+      <table class="admin-table">
+        <thead><tr><th>User ID</th><th>Actual Crop</th><th>Rating</th><th>Date</th></tr></thead>
+        <tbody>${data.map(f=>`
+          <tr>
+            <td class="mono">${f.userId?.slice(-6)||"—"}</td>
+            <td>${f.actual_crop||"—"}</td>
+            <td>${"★".repeat(f.rating||0)}${"☆".repeat(5-(f.rating||0))}</td>
+            <td>${new Date(f.createdAt).toLocaleDateString("en-IN")}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    document.getElementById("tabFeedback").innerHTML = `<div style="padding:1rem;color:var(--text-muted)">Failed to load feedback.</div>`;
+  }
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll(".admin-tab").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  document.querySelectorAll(".admin-table-wrap").forEach(t=>t.style.display="none");
+  document.getElementById("tab"+tab.charAt(0).toUpperCase()+tab.slice(1)).style.display="block";
+  if(tab==="predictions") loadPredictions();
+  if(tab==="feedback") loadFeedback();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Crop Advisor — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body class="auth-body">
+<div class="bg-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div class="auth-logo">🌾</div>
+      <select id="language" class="lang-select" onchange="changeLang()">
+        <option value="en">🌐 English</option>
+        <option value="ta">தமிழ்</option>
+        <option value="te">తెలుగు</option>
+        <option value="kn">ಕನ್ನಡ</option>
+        <option value="ml">മലയാളം</option>
+        <option value="hi">हिंदी</option>
+      </select>
+    </div>
+    <h1 class="auth-title" id="appTitle">AI Crop Advisor</h1>
+    <p class="auth-sub" id="loginSub">Login to your farming account</p>
+
+    <form onsubmit="doLogin(event)" class="auth-form">
+      <div class="input-group">
+        <label id="emailLbl"><i class="fa fa-envelope"></i> Email Address</label>
+        <input type="email" id="email" placeholder="farmer@example.com" required autocomplete="email">
+      </div>
+      <div class="input-group">
+        <label id="pwLbl"><i class="fa fa-lock"></i> Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="password" placeholder="Enter password" required autocomplete="current-password">
+          <button type="button" class="pw-toggle" onclick="togglePw('password')"><i class="fa fa-eye"></i></button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
+        <i class="fa fa-right-to-bracket"></i> <span id="loginTxt">Login</span>
+      </button>
+    </form>
+
+    <div class="auth-divider">or</div>
+
+    <div class="auth-links">
+      <p><span id="noAccountTxt">Don't have an account?</span> <a href="/signup" id="signupLink">Sign Up</a></p>
+      <p style="margin-top:0.5rem"><a href="/admin" class="admin-link" id="adminLink"><i class="fa fa-shield-halved"></i> Admin Login</a></p>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="/static/js/auth.js"></script>
+<script>
+const T = {{ translations|tojson }};
+let lang = localStorage.getItem("cropLang") || "en";
+
+function changeLang() {
+  lang = document.getElementById("language").value;
+  localStorage.setItem("cropLang", lang);
+  document.getElementById("appTitle").innerText   = I18n.tr("app_title", T);
+  document.getElementById("loginSub").innerText   = I18n.tr("tagline", T);
+  document.getElementById("loginTxt").innerText   = I18n.tr("login", T);
+  document.getElementById("adminLink").innerHTML  = '<i class="fa fa-shield-halved"></i> ' + I18n.tr("admin_login", T);
+}
+
+// Redirect if already logged in
+if (Auth.isLoggedIn()) window.location.href = Auth.isAdmin() ? "/admin" : "/app";
+
+window.onload = function() {
+  document.getElementById("language").value = lang;
+  changeLang();
+};
+
+async function doLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById("loginBtn");
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Logging in...';
+  btn.disabled = true;
+  try {
+    const resp = await fetch("/api/auth/login", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ email:document.getElementById("email").value.trim(), password:document.getElementById("password").value })
+    });
+    const d = await resp.json();
+    if (!resp.ok) { showToast(d.error||"Login failed","error"); return; }
+    Auth.save(d.token, d.user);
+    showToast("Welcome back, "+d.user.name+"!","success");
+    setTimeout(()=>{ window.location.href = d.user.role==="admin"?"/admin":"/app"; }, 500);
+  } catch(e) { showToast("Connection error — please check backend/MongoDB","error"); }
+  finally { btn.innerHTML='<i class="fa fa-right-to-bracket"></i> <span id="loginTxt">' + I18n.tr("login", T) + '</span>'; btn.disabled=false; }
+}
+
+function togglePw(id) {
+  const el=document.getElementById(id);
+  el.type = el.type==="password"?"text":"password";
+}
+</script>
+</body>
+</html>

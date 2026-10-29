@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Crop Advisor — Sign Up</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body class="auth-body">
+<div class="bg-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div class="auth-logo">🌾</div>
+      <select id="language" class="lang-select" onchange="changeLang()">
+        <option value="en">🌐 English</option>
+        <option value="ta">தமிழ்</option>
+        <option value="te">తెలుగు</option>
+        <option value="kn"><ctrl42>ಕನ್ನಡ</option>
+        <option value="ml">മലയാളം</option>
+        <option value="hi">हिंदी</option>
+      </select>
+    </div>
+    <h1 class="auth-title" id="signupTitle">Create Account</h1>
+    <p class="auth-sub" id="signupSub">Join AI Crop Advisor today</p>
+
+    <form onsubmit="doSignup(event)" class="auth-form">
+      <div class="input-group">
+        <label id="nameLbl"><i class="fa fa-user"></i> Full Name</label>
+        <input type="text" id="name" placeholder="Your full name" required>
+      </div>
+      <div class="input-group">
+        <label id="emailLbl"><i class="fa fa-envelope"></i> Email Address</label>
+        <input type="email" id="email" placeholder="farmer@example.com" required oninput="validateEmail()">
+        <span class="field-hint" id="emailHint"></span>
+      </div>
+      <div class="input-group">
+        <label id="pwLbl"><i class="fa fa-lock"></i> Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="password" placeholder="Minimum 6 characters" required oninput="checkStrength()">
+          <button type="button" class="pw-toggle" onclick="togglePw('password')"><i class="fa fa-eye"></i></button>
+        </div>
+        <div class="pw-strength" id="pwStrength"></div>
+      </div>
+      <div class="input-group">
+        <label id="confirmLbl"><i class="fa fa-lock"></i> Confirm Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="confirm" placeholder="Re-enter password" required>
+          <button type="button" class="pw-toggle" onclick="togglePw('confirm')"><i class="fa fa-eye"></i></button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="signupBtn">
+        <i class="fa fa-user-plus"></i> <span id="signupTxt">Create Account</span>
+      </button>
+    </form>
+
+    <div class="auth-divider">or</div>
+    <div class="auth-links">
+      <p><span id="alreadyAccount">Already have an account?</span> <a href="/" id="loginLink">Login</a></p>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="/static/js/auth.js"></script>
+<script>
+if (Auth.isLoggedIn()) window.location.href = "/app";
+const T = {{ translations|tojson }};
+let lang = localStorage.getItem("cropLang") || "en";
+
+function changeLang() {
+  lang = document.getElementById("language").value;
+  localStorage.setItem("cropLang", lang);
+  document.getElementById("signupTitle").innerText = I18n.tr("signup", T);
+  document.getElementById("signupSub").innerText   = I18n.tr("tagline", T);
+  document.getElementById("signupTxt").innerText   = I18n.tr("signup", T);
+  document.getElementById("loginLink").innerText   = I18n.tr("login", T);
+}
+
+window.onload = function() {
+  document.getElementById("language").value = lang;
+  changeLang();
+};
+
+function validateEmail() {
+  const v = document.getElementById("email").value;
+  const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const hint = document.getElementById("emailHint");
+  hint.innerText = v ? (ok?"✅ Valid email":"❌ Invalid email format") : "";
+  hint.style.color = ok ? "#52b788" : "#e76f51";
+}
+
+function checkStrength() {
+  const p = document.getElementById("password").value;
+  const bar = document.getElementById("pwStrength");
+  let score=0, label="", color="";
+  if (p.length>=6) score++;
+  if (/[A-Z]/.test(p)) score++;
+  if (/[0-9]/.test(p)) score++;
+  if (/[^A-Za-z0-9]/.test(p)) score++;
+  if (score<=1) { label="Weak"; color="#e76f51"; }
+  else if (score===2) { label="Fair"; color="#e9c46a"; }
+  else if (score===3) { label="Good"; color="#52b788"; }
+  else { label="Strong 💪"; color="#2d9d5a"; }
+  bar.innerHTML = p ? `<div class="pw-bar" style="width:${score*25}%;background:${color}"></div><span style="color:${color};font-size:0.75rem">${label}</span>` : "";
+}
+
+function togglePw(id) {
+  const el=document.getElementById(id);
+  el.type = el.type==="password"?"text":"password";
+}
+
+async function doSignup(e) {
+  e.preventDefault();
+  const pw=document.getElementById("password").value;
+  const cf=document.getElementById("confirm").value;
+  if (pw!==cf) { showToast("Passwords do not match","error"); return; }
+  if (pw.length<6) { showToast("Password must be at least 6 characters","error"); return; }
+
+  const btn=document.getElementById("signupBtn");
+  btn.innerHTML='<i class="fa fa-spinner fa-spin"></i> Creating account...'; btn.disabled=true;
+  try {
+    const resp=await fetch("/api/auth/signup",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:document.getElementById("name").value.trim(),email:document.getElementById("email").value.trim(),password:pw})});
+    const d=await resp.json();
+    if (!resp.ok) { showToast(d.error||"Signup failed","error"); return; }
+    Auth.save(d.token, d.user);
+    showToast("Account created! Welcome, "+d.user.name,"success");
+    setTimeout(()=>window.location.href="/app",600);
+  } catch(e) { showToast("Connection error — please check backend/MongoDB","error"); }
+  finally { btn.innerHTML='<i class="fa fa-user-plus"></i> <span id="signupTxt">' + I18n.tr("signup", T) + '</span>'; btn.disabled=false; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI Crop Advisor — Location & Weather</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/auth.css">
+<script src="/static/js/auth.js"></script>
+</head>
+<body>
+<div class="bg-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+
+<div class="app" id="main-app">
+  <!-- TOP NAV -->
+  <div class="top-nav">
+    <a href="/history" class="nav-link" id="navHistory"><i class="fa fa-clock-rotate-left"></i> My History</a>
+    <span id="userDisplay" class="user-name"></span>
+    <button class="btn-logout" onclick="Auth.logout()" title="Logout"><i class="fa fa-sign-out-alt"></i></button>
+  </div>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-icon" onclick="window.location.href='/app'" style="cursor:pointer">🌾</div>
+    <div class="header-text">
+      <h1 id="appTitle">AI Crop Advisor</h1>
+      <p class="tagline" id="tagline">Smart farming intelligence for better yields</p>
+    </div>
+    <select id="language" class="lang-select" onchange="changeLang()">
+      <option value="en">🌐 English</option>
+      <option value="ta">தமிழ்</option>
+      <option value="te">తెలుగు</option>
+      <option value="kn">ಕನ್ನಡ</option>
+      <option value="ml">മലയാളം</option>
+      <option value="hi">हिंदी</option>
+    </select>
+  </header>
+
+  <!-- STEP INDICATOR -->
+  <div class="steps">
+    <div class="step active"><div class="step-circle">1</div><span id="s1">Location</span></div>
+    <div class="step-line"></div>
+    <div class="step"><div class="step-circle">2</div><span id="s2">Soil</span></div>
+    <div class="step-line"></div>
+    <div class="step"><div class="step-circle">3</div><span id="s3">Results</span></div>
+    <div class="step-line"></div>
+    <div class="step"><div class="step-circle">4</div><span id="s4">Feedback</span></div>
+  </div>
+
+  <!-- CARD -->
+  <div class="card">
+    <div class="card-header"><span class="card-icon">📍</span><h2 id="locTitle">Location & Weather</h2></div>
+
+    <div class="input-row">
+      <div class="input-group" style="flex:1">
+        <label id="cityLbl"><i class="fa fa-location-dot"></i> City / Village</label>
+        <input id="city" placeholder="Type city or village..." autocomplete="off"
+               oninput="onCityInput()" onkeydown="if(event.key==='Enter') fetchWeather()">
+      </div>
+      <button class="btn-gps" id="gpsBtn" onclick="getGPS()" title="Use live GPS">
+        <i class="fa fa-location-crosshairs"></i>
+      </button>
+    </div>
+
+    <div id="suggestions" class="suggestions" style="display:none"></div>
+    <div id="gpsStatus" class="gps-status" style="display:none">
+      <span class="pulse-dot"></span><span id="gpsMsg">Getting location...</span>
+    </div>
+    <div id="coordsBar" class="coords-bar" style="display:none">
+      <i class="fa fa-crosshairs"></i>
+      <span id="coordsTxt"></span>
+      <span id="coordsSrc" class="coords-src"></span>
+    </div>
+
+    <button class="btn btn-secondary" onclick="fetchWeather()" id="weatherBtn">
+      <i class="fa fa-cloud-sun"></i> <span id="weatherBtnTxt">Get Weather</span>
+    </button>
+
+    <div class="weather-row" id="weatherRow" style="display:none">
+      <div class="weather-item">
+        <i class="fa fa-thermometer-half weather-icon"></i>
+        <div><div class="weather-val" id="dispTemp">—</div><div class="weather-lbl" id="tempLbl">Temperature (°C)</div></div>
+      </div>
+      <div class="weather-item">
+        <i class="fa fa-droplet weather-icon"></i>
+        <div><div class="weather-val" id="dispHum">—</div><div class="weather-lbl" id="humLbl">Humidity (%)</div></div>
+      </div>
+      <div class="weather-badge" id="weatherSrc"></div>
+    </div>
+  </div>
+
+  <div class="nav-row">
+    <div></div>
+    <button class="btn btn-primary btn-next" onclick="goNext()" id="nextBtn">
+      <span id="nextTxt">Next</span> <i class="fa fa-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+Auth.guard();
+Auth.renderHeader();
+const T = {{ translations|tojson }};
+let lang = localStorage.getItem("cropLang") || "en";
+let locLat = null, locLon = null;
+let suggestTimer = null;
+
+function changeLang() {
+  lang = document.getElementById("language").value;
+  localStorage.setItem("cropLang", lang);
+  document.getElementById("appTitle").innerText       = I18n.tr("app_title", T);
+  document.getElementById("tagline").innerText        = I18n.tr("tagline", T);
+  document.getElementById("s1").innerText             = I18n.tr("step1", T);
+  document.getElementById("s2").innerText             = I18n.tr("step2", T);
+  document.getElementById("s3").innerText             = I18n.tr("step3", T);
+  document.getElementById("s4").innerText             = I18n.tr("step4", T);
+  document.getElementById("cityLbl").innerHTML        = '<i class="fa fa-location-dot"></i> ' + I18n.tr("city_label", T);
+  document.getElementById("city").placeholder         = I18n.tr("type_city", T);
+  document.getElementById("weatherBtnTxt").innerText = I18n.tr("get_weather", T);
+  document.getElementById("nextTxt").innerText        = I18n.tr("next", T);
+  document.getElementById("gpsBtn").title             = I18n.tr("use_gps", T);
+  document.getElementById("navHistory").innerHTML     = '<i class="fa fa-clock-rotate-left"></i> ' + I18n.tr("my_history", T);
+  document.getElementById("tempLbl").innerText        = I18n.tr("temperature", T);
+  document.getElementById("humLbl").innerText         = I18n.tr("humidity", T);
+}
+
+window.onload = function() {
+  document.getElementById("language").value = lang;
+  changeLang();
+  
+  // Pre-fill saved city if present
+  const savedCity = localStorage.getItem("cropCity");
+  if (savedCity) document.getElementById("city").value = savedCity;
+  const savedLat = localStorage.getItem("cropLat");
+  const savedLon = localStorage.getItem("cropLon");
+  if (savedLat && savedLon) {
+    setCoords(parseFloat(savedLat), parseFloat(savedLon), "geo");
+  }
+};
+
+function setCoords(lat, lon, src) {
+  locLat = lat; locLon = lon;
+  document.getElementById("coordsBar").style.display = "flex";
+  document.getElementById("coordsTxt").innerText = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  document.getElementById("coordsSrc").innerText = src === "gps" ? "📡 GPS" : "🔍 Geocoded";
+  document.getElementById("coordsSrc").className = "coords-src " + (src==="gps"?"src-gps":"src-geo");
+}
+
+function getGPS() {
+  if (!navigator.geolocation) { showToast("Geolocation not supported"); return; }
+  const btn = document.getElementById("gpsBtn");
+  const st  = document.getElementById("gpsStatus");
+  btn.classList.add("gps-active"); st.style.display = "flex";
+  document.getElementById("gpsMsg").innerText = "Getting GPS...";
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const {latitude:lat, longitude:lon, accuracy:acc} = pos.coords;
+    setCoords(lat, lon, "gps");
+    document.getElementById("gpsMsg").innerText = "Reverse geocoding...";
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1`,{headers:{"Accept-Language":"en"}});
+      const d = await r.json();
+      const addr = d.address || {};
+      const place = addr.village||addr.suburb||addr.town||addr.city||addr.county||"";
+      const cityVal = place + (addr.state_district ? ", " + addr.state_district : "");
+      const el = document.getElementById("city");
+      el.value = cityVal || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      showToast(`📡 GPS: ${place||"Location"} (±${Math.round(acc)}m)`);
+      fetchWeather();
+    } catch(e) {
+      document.getElementById("city").value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    }
+    btn.classList.remove("gps-active"); st.style.display = "none";
+  }, err => {
+    btn.classList.remove("gps-active"); st.style.display = "none";
+    showToast("❌ Location access denied");
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:0});
+}
+
+async function onCityInput() {
+  const val = document.getElementById("city").value.trim();
+  locLat = null; locLon = null;
+  document.getElementById("coordsBar").style.display = "none";
+  clearTimeout(suggestTimer);
+  const box = document.getElementById("suggestions");
+  if (val.length < 3) { box.style.display = "none"; return; }
+  suggestTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&countrycodes=in&limit=5&addressdetails=1`,{headers:{"Accept-Language":"en"}});
+      const res = await r.json();
+      if (!res.length) { box.style.display="none"; return; }
+      box.innerHTML = res.map(p => {
+        const label = p.display_name.split(",").slice(0,3).join(", ");
+        return `<div class="suggest-item" onclick="selectSuggest(${p.lat},${p.lon},'${label.replace(/'/g,"\\'")}')">
+          <i class="fa fa-location-dot" style="color:#52b788;margin-right:6px"></i>${label}</div>`;
+      }).join("");
+      box.style.display = "block";
+    } catch(e) {}
+  }, 350);
+}
+
+function selectSuggest(lat, lon, label) {
+  document.getElementById("city").value = label;
+  document.getElementById("suggestions").style.display = "none";
+  setCoords(parseFloat(lat), parseFloat(lon), "geo");
+  fetchWeather();
+}
+
+document.addEventListener("click", e => {
+  if (!e.target.closest("#suggestions") && !e.target.closest("#city"))
+    document.getElementById("suggestions").style.display = "none";
+});
+
+async function fetchWeather() {
+  const city = document.getElementById("city").value.trim();
+  if (!city && !locLat) { showToast("Please enter city or use GPS"); return; }
+  const btn = document.getElementById("weatherBtn");
+  btn.style.opacity = "0.7";
+  let url = "/api/weather?city=" + encodeURIComponent(city);
+  if (locLat && locLon) url += `&lat=${locLat}&lon=${locLon}`;
+  try {
+    const d = await (await fetch(url)).json();
+    document.getElementById("dispTemp").innerText = d.temperature + "°C";
+    document.getElementById("dispHum").innerText  = d.humidity + "%";
+    document.getElementById("weatherRow").style.display = "flex";
+    document.getElementById("weatherSrc").innerText = d.source === "live" ? "🌤 Live API" : (d.source === "fetched" ? "🌤 Fetched" : "🌤 Fallback Data");
+    if (d.lat && d.lon && !locLat) setCoords(d.lat, d.lon, "geo");
+    localStorage.setItem("cropWeather", JSON.stringify({temp:d.temperature, hum:d.humidity}));
+    showToast("🌤 Weather loaded!");
+  } catch(e) { showToast("Weather fetch failed"); }
+  btn.style.opacity = "1";
+}
+
+function goNext() {
+  const city = document.getElementById("city").value.trim();
+  if (!city) { showToast("Please enter your city first"); return; }
+  const weather = JSON.parse(localStorage.getItem("cropWeather")||"{}");
+  localStorage.setItem("cropCity", city);
+  if (locLat) localStorage.setItem("cropLat", locLat);
+  if (locLon) localStorage.setItem("cropLon", locLon);
+  if (weather.temp) localStorage.setItem("cropTemp", weather.temp);
+  if (weather.hum)  localStorage.setItem("cropHum",  weather.hum);
+  window.location.href = "/soil";
+}
+</script>
+</body>
+</html>

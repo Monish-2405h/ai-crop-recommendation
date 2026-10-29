@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI Crop Advisor — Feedback</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/auth.css">
+<script src="/static/js/auth.js"></script>
+</head>
+<body>
+<div class="bg-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+<div class="app" id="main-app">
+  <!-- TOP NAV -->
+  <div class="top-nav">
+    <a href="/history" class="nav-link" id="navHistory"><i class="fa fa-clock-rotate-left"></i> My History</a>
+    <span id="userDisplay" class="user-name"></span>
+    <button class="btn-logout" onclick="Auth.logout()" title="Logout"><i class="fa fa-sign-out-alt"></i></button>
+  </div>
+
+  <header class="header">
+    <div class="header-icon" onclick="window.location.href='/app'" style="cursor:pointer">🌾</div>
+    <div class="header-text">
+      <h1 id="appTitle">AI Crop Advisor</h1>
+      <p class="tagline" id="tagline">Help us improve predictions for all farmers</p>
+    </div>
+    <select id="language" class="lang-select" onchange="changeLang()">
+      <option value="en">🌐 English</option>
+      <option value="ta">தமிழ்</option>
+      <option value="te">తెలుగు</option>
+      <option value="kn">ಕನ್ನಡ</option>
+      <option value="ml">മലയാളം</option>
+      <option value="hi">हिंदी</option>
+    </select>
+  </header>
+
+  <div class="steps">
+    <div class="step done"><div class="step-circle"><i class="fa fa-check"></i></div><span id="s1">Location</span></div>
+    <div class="step-line done"></div>
+    <div class="step done"><div class="step-circle"><i class="fa fa-check"></i></div><span id="s2">Soil</span></div>
+    <div class="step-line done"></div>
+    <div class="step done"><div class="step-circle"><i class="fa fa-check"></i></div><span id="s3">Results</span></div>
+    <div class="step-line done"></div>
+    <div class="step active"><div class="step-circle">4</div><span id="s4">Feedback</span></div>
+  </div>
+
+  <!-- DB BANNER -->
+  <div class="db-banner" id="dbBanner">
+    <i class="fa fa-database"></i>
+    <span id="dbMsg">Checking MongoDB database connection...</span>
+  </div>
+
+  <!-- PREDICTION SUMMARY -->
+  <div class="card summary-card">
+    <div class="card-header"><span class="card-icon">✅</span><h2 id="sumHeader">Your AI Prediction Summary</h2></div>
+    <div class="summary-row">
+      <div class="summary-item">
+        <div class="summary-lbl" id="sumCropLbl">AI Predicted Crop</div>
+        <div class="summary-val" id="predCrop">—</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-lbl" id="sumSoilLbl">Soil Score</div>
+        <div class="summary-val" id="soilScoreSum">—</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-lbl" id="sumYieldLbl">Est. Yield</div>
+        <div class="summary-val" id="yieldSum">—</div>
+      </div>
+    </div>
+    <div id="inputsBar"></div>
+  </div>
+
+  <!-- FEEDBACK FORM -->
+  <div class="card feedback-card" id="feedbackCard">
+    <div class="card-header">
+      <span class="card-icon">📝</span>
+      <h2 id="farmDataHeader">Enter Your Actual Farm Data</h2>
+    </div>
+
+    <div class="feedback-note" id="feedbackNoteText">
+      <i class="fa fa-lightbulb" style="color:#e9c46a"></i>
+      Your real profit, yield, and crop data is saved to our MongoDB database and used to retrain the AI model — improving accuracy for every farmer.
+    </div>
+
+    <!-- SECTION 1 -->
+    <div class="form-section">
+      <div class="form-section-title"><span class="sec-num">1</span> <span id="sec1Title">Crop &amp; Farm Size</span></div>
+      <div class="input-group">
+        <label><i class="fa fa-seedling"></i> <span id="actualCropLbl">Crop you actually grew this season</span></label>
+        <select id="actualCrop">
+          <option value="">-- Select your crop --</option>
+          {% for crop in crops %}
+          <option value="{{ crop }}">{{ crop }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="input-group">
+        <label><i class="fa fa-layer-group"></i> <span id="acresLbl">Number of Acres Farmed</span></label>
+        <input type="number" id="noOfAcres" placeholder="e.g. 2.5 acres" min="0.1" step="0.1" oninput="calcTotals()">
+      </div>
+    </div>
+
+    <!-- SECTION 2 -->
+    <div class="form-section">
+      <div class="form-section-title"><span class="sec-num">2</span> <span id="sec2Title">Actual Profit</span></div>
+      <div class="input-grid">
+        <div class="input-group">
+          <label><i class="fa fa-indian-rupee-sign"></i> <span id="profitLbl">Profit per Acre (₹)</span></label>
+          <input type="number" id="profitPerAcre" placeholder="e.g. 45000" min="0" oninput="calcTotals()">
+        </div>
+        <div class="input-group">
+          <label><i class="fa fa-calculator"></i> <span id="totalProfitLbl">Total Profit (₹)</span> <span class="auto-lbl">Auto</span></label>
+          <input type="number" id="totalProfit" placeholder="Auto calculated" readonly class="readonly-field">
+        </div>
+      </div>
+      <div class="compare-bar" id="profitCompare" style="display:none">
+        <div class="compare-label" id="profitCompLbl">Actual profit vs AI estimate</div>
+        <div class="compare-row">
+          <div class="compare-item"><div class="compare-val actual" id="profitActualDisp">—</div><div class="compare-lbl" id="yourActLbl1">Your Actual</div></div>
+          <div class="compare-arrow">vs</div>
+          <div class="compare-item"><div class="compare-val predicted" id="profitPredDisp">—</div><div class="compare-lbl" id="aiEstLbl1">AI Estimate</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3 -->
+    <div class="form-section">
+      <div class="form-section-title"><span class="sec-num">3</span> <span id="sec3Title">Actual Yield</span></div>
+      <div class="input-grid">
+        <div class="input-group">
+          <label><i class="fa fa-weight-scale"></i> <span id="yieldLbl">Yield per Acre (kg)</span></label>
+          <input type="number" id="yieldPerAcre" placeholder="e.g. 2800" min="0" oninput="calcTotals()">
+        </div>
+        <div class="input-group">
+          <label><i class="fa fa-calculator"></i> <span id="totalYieldLbl">Total Yield (kg)</span> <span class="auto-lbl">Auto</span></label>
+          <input type="number" id="totalYield" placeholder="Auto calculated" readonly class="readonly-field">
+        </div>
+      </div>
+      <div class="compare-bar" id="yieldCompare" style="display:none">
+        <div class="compare-label" id="yieldCompLbl">Actual yield vs AI estimate</div>
+        <div class="compare-row">
+          <div class="compare-item"><div class="compare-val actual" id="yieldActualDisp">—</div><div class="compare-lbl" id="yourActLbl2">Your Actual</div></div>
+          <div class="compare-arrow">vs</div>
+          <div class="compare-item"><div class="compare-val predicted" id="yieldPredDisp">—</div><div class="compare-lbl" id="aiEstLbl2">AI Estimate</div></div>
+          <div class="compare-diff" id="yieldDiff"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4 -->
+    <div class="form-section">
+      <div class="form-section-title"><span class="sec-num">4</span> <span id="sec4Title">Rate the AI Prediction</span></div>
+      <div class="star-row" id="starRow">
+        <span class="star" onclick="setRating(1)">★</span>
+        <span class="star" onclick="setRating(2)">★</span>
+        <span class="star" onclick="setRating(3)">★</span>
+        <span class="star" onclick="setRating(4)">★</span>
+        <span class="star" onclick="setRating(5)">★</span>
+        <span class="rating-lbl" id="ratingLbl">Tap to rate</span>
+      </div>
+      <div class="input-group" style="margin-top:0.8rem">
+        <label><i class="fa fa-comment"></i> <span id="commentsLbl">Comments (optional)</span></label>
+        <textarea id="comments" rows="3" placeholder="e.g. Soil was drier than expected this season..."></textarea>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-full" onclick="submitFeedback()" id="submitBtn">
+      <i class="fa fa-database"></i>
+      <span id="submitTxt">Save to Database &amp; Help Train AI</span>
+    </button>
+    <div style="text-align:center;margin-top:0.8rem">
+      <a onclick="window.location.href='/app'" style="cursor:pointer;color:var(--text-muted);font-size:0.8rem" id="skipLink">
+        Skip — Start New Prediction
+      </a>
+    </div>
+  </div>
+
+  <!-- SUCCESS CARD -->
+  <div class="card success-card" id="successCard" style="display:none">
+    <div class="success-icon">🎉</div>
+    <h2 id="thankYouHeader">Thank You!</h2>
+    <p id="thankYouText">Your data has been saved to the MongoDB database and will be used to improve AI crop predictions.</p>
+    <div class="saved-summary" id="savedSummary"></div>
+    <div class="community-count">
+      <i class="fa fa-users"></i>
+      <span id="communityCount">—</span> farmers have contributed data
+    </div>
+    <div class="nav-row" style="margin-top:1.5rem">
+      <button class="btn btn-secondary" onclick="window.location.href='/app'">
+        <i class="fa fa-redo"></i> New Prediction
+      </button>
+      <button class="btn btn-outline" onclick="window.location.href='/results'">
+        <i class="fa fa-chart-line"></i> View Results
+      </button>
+    </div>
+  </div>
+
+  <!-- STATS CARD -->
+  <div class="card stats-card">
+    <div class="card-header"><span class="card-icon">📊</span><h2 id="statsHeader">Community Database Stats</h2></div>
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-val" id="statContrib">—</div><div class="stat-lbl" id="contribLbl">Contributions</div></div>
+      <div class="stat-box"><div class="stat-val">15</div><div class="stat-lbl" id="cropsStatLbl">Crops</div></div>
+      <div class="stat-box"><div class="stat-val">6</div><div class="stat-lbl" id="langStatLbl">Languages</div></div>
+    </div>
+    <div class="db-info-box">
+      <div class="db-info-row">
+        <i class="fa fa-database" style="color:#52b788"></i>
+        <span><strong>MongoDB Database</strong> — Cloud / Local MongoDB</span>
+        <span class="badge-ok" id="mongoBadge">Active</span>
+      </div>
+      <div class="db-info-row">
+        <i class="fa fa-download" style="color:#52b788"></i>
+        <span>Export all community data as CSV for ML retraining</span>
+        <a href="/api/community-export" class="badge-ok" style="text-decoration:none;cursor:pointer" id="exportCsvBtn">Export CSV</a>
+      </div>
+    </div>
+    <p class="stats-note" id="retrainNote">Run <code>python retrain_model.py</code> to retrain the model with community data.</p>
+  </div>
+
+  <div style="height:2rem"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+Auth.guard();
+Auth.renderHeader();
+const T = {{ translations|tojson }};
+const rawCrops = {{ crops|tojson }};
+let lang = localStorage.getItem("cropLang") || "en";
+let rating = 0, R = null;
+
+function changeLang() {
+  lang = document.getElementById("language").value;
+  localStorage.setItem("cropLang", lang);
+
+  document.getElementById("appTitle").innerText       = I18n.tr("app_title", T);
+  document.getElementById("tagline").innerText        = I18n.tr("tagline", T);
+  document.getElementById("s1").innerText             = I18n.tr("step1", T);
+  document.getElementById("s2").innerText             = I18n.tr("step2", T);
+  document.getElementById("s3").innerText             = I18n.tr("step3", T);
+  document.getElementById("s4").innerText             = I18n.tr("step4", T);
+  document.getElementById("navHistory").innerHTML     = '<i class="fa fa-clock-rotate-left"></i> ' + I18n.tr("my_history", T);
+
+  document.getElementById("sumHeader").innerText     = I18n.tr("rec_crop", T) + " " + I18n.tr("history", T);
+  document.getElementById("sumCropLbl").innerText    = I18n.tr("rec_crop", T);
+  document.getElementById("sumSoilLbl").innerText    = I18n.tr("soil_health", T);
+  document.getElementById("sumYieldLbl").innerText   = I18n.tr("expected_yield", T);
+
+  document.getElementById("farmDataHeader").innerText= I18n.tr("submit_feedback", T);
+  document.getElementById("feedbackNoteText").innerHTML = '<i class="fa fa-lightbulb" style="color:#e9c46a"></i> ' + I18n.tr("feedback_note", T);
+
+  document.getElementById("actualCropLbl").innerText = I18n.tr("actual_crop", T);
+  document.getElementById("acresLbl").innerText      = I18n.tr("acres_farmed", T);
+  document.getElementById("profitLbl").innerText     = I18n.tr("actual_profit", T);
+  document.getElementById("totalProfitLbl").innerText= I18n.tr("total_profit", T);
+  document.getElementById("yieldLbl").innerText      = I18n.tr("actual_yield", T);
+  document.getElementById("totalYieldLbl").innerText = I18n.tr("total_yield", T);
+  document.getElementById("sec4Title").innerText     = I18n.tr("rate_prediction", T);
+  document.getElementById("commentsLbl").innerText   = I18n.tr("comments", T);
+  document.getElementById("submitTxt").innerText     = I18n.tr("save_db", T);
+  document.getElementById("skipLink").innerText      = I18n.tr("skip_new", T);
+  document.getElementById("thankYouHeader").innerText= I18n.tr("thank_you", T);
+  document.getElementById("exportCsvBtn").innerText  = I18n.tr("export_csv", T);
+
+  // Update actual crop options in dropdown
+  const sel = document.getElementById("actualCrop");
+  const currentVal = sel.value;
+  sel.innerHTML = `<option value="">-- ${I18n.tr("actual_crop", T)} --</option>` +
+    rawCrops.map(c => `<option value="${c}" ${c === currentVal ? 'selected':''}>${I18n.crop(c, T)}</option>`).join("");
+
+  if (R) {
+    document.getElementById("predCrop").innerText = I18n.crop(R.crop, T);
+  }
+}
+
+window.onload = async function() {
+  document.getElementById("language").value = lang;
+  changeLang();
+  
+  R = JSON.parse(localStorage.getItem("cropResult") || "null");
+  if (R) {
+    document.getElementById("predCrop").innerText     = I18n.crop(R.crop, T);
+    document.getElementById("soilScoreSum").innerText = R.soil_score + "/100";
+    document.getElementById("yieldSum").innerText     = R.yield_est + " kg/acre";
+    document.getElementById("profitPredDisp").innerText = R.profit_per_acre || "—";
+    document.getElementById("yieldPredDisp").innerText  = R.yield_est + " kg/acre";
+    
+    // Select predicted crop by default
+    const sel = document.getElementById("actualCrop");
+    if (sel && R.crop) sel.value = R.crop;
+
+    const inp = R.inputs || {};
+    document.getElementById("inputsBar").innerHTML = `
+      <div class="inputs-mini">
+        <span>N: ${inp.N||"—"}</span><span>P: ${inp.P||"—"}</span>
+        <span>K: ${inp.K||"—"}</span><span>pH: ${inp.ph||"—"}</span>
+        <span>Rain: ${inp.rainfall||"—"}mm</span><span>Temp: ${inp.temperature||"—"}°C</span>
+      </div>`;
+  }
+
+  try {
+    const d = await (await fetch("/api/db-status")).json();
+    if (d.mongodb) {
+      document.getElementById("dbMsg").innerHTML =
+        `<i class="fa fa-check-circle" style="color:#52b788"></i> ` +
+        `MongoDB Database Connected — ${d.predictions} predictions saved, ${d.community_data} community feedback records`;
+      document.getElementById("dbBanner").style.borderColor = "#52b788";
+      document.getElementById("dbBanner").style.background = "rgba(82,183,136,0.1)";
+      document.getElementById("statContrib").innerText = d.community_data;
+      document.getElementById("mongoBadge").className = "badge-ok";
+      document.getElementById("mongoBadge").innerText = "Active";
+    } else {
+      document.getElementById("dbMsg").innerHTML =
+        `<i class="fa fa-exclamation-circle" style="color:#e76f51"></i> MongoDB Connection Failed: ${d.error || 'Server unavailable'}`;
+      document.getElementById("mongoBadge").className = "badge-off";
+      document.getElementById("mongoBadge").innerText = "Offline";
+    }
+  } catch(e) {
+    document.getElementById("dbMsg").innerText = "MongoDB Database Connected";
+  }
+};
+
+function calcTotals() {
+  const acres = parseFloat(document.getElementById("noOfAcres").value) || 0;
+  const ppa   = parseFloat(document.getElementById("profitPerAcre").value) || 0;
+  const ypa   = parseFloat(document.getElementById("yieldPerAcre").value) || 0;
+  if (acres > 0) {
+    if (ppa > 0) {
+      document.getElementById("totalProfit").value = (ppa * acres).toLocaleString("en-IN");
+      document.getElementById("profitCompare").style.display = "block";
+      document.getElementById("profitActualDisp").innerText = "₹" + ppa.toLocaleString("en-IN") + "/acre";
+    }
+    if (ypa > 0) {
+      document.getElementById("totalYield").value = (ypa * acres).toFixed(0);
+      document.getElementById("yieldCompare").style.display = "block";
+      document.getElementById("yieldActualDisp").innerText = ypa.toLocaleString("en-IN") + " kg/acre";
+      if (R) {
+        const diff = ypa - (R.yield_est || 0);
+        const cls  = diff >= 0 ? "diff-pos" : "diff-neg";
+        document.getElementById("yieldDiff").innerHTML =
+          `<span class="${cls}">${diff>=0?"+":""}${diff.toFixed(0)} kg vs AI estimate</span>`;
+      }
+    }
+  }
+}
+
+function setRating(n) {
+  rating = n;
+  document.querySelectorAll(".star").forEach((s, i) => s.classList.toggle("active", i < n));
+  const lbls = ["", "Poor", "Fair", "Good", "Very Good", "Excellent!"];
+  document.getElementById("ratingLbl").innerText = lbls[n];
+}
+
+async function submitFeedback() {
+  const actualCropVal = document.getElementById("actualCrop").value;
+  if (!actualCropVal) {
+    showToast("Please select the crop you actually grew"); return;
+  }
+  const btn = document.getElementById("submitBtn");
+  btn.style.opacity = "0.7";
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving to database...';
+
+  const acres = parseFloat(document.getElementById("noOfAcres").value) || null;
+  const ppa   = parseFloat(document.getElementById("profitPerAcre").value) || null;
+  const ypa   = parseFloat(document.getElementById("yieldPerAcre").value) || null;
+  const predId = localStorage.getItem("feedbackPredId") || (R && R._id) || null;
+  
+  const body = {
+    predictionId:           predId,
+    predicted_crop:         R ? R.crop : (localStorage.getItem("feedbackCrop") || ""),
+    actual_crop:            actualCropVal,
+    no_of_acres:            acres,
+    actual_profit_per_acre: ppa,
+    actual_yield_per_acre:  ypa,
+    rating,
+    comments:               document.getElementById("comments").value,
+    lang,
+    city:                   localStorage.getItem("cropCity") || "",
+  };
+
+  try {
+    const resp = await Auth.fetch("/api/feedback", { method: "POST", body: JSON.stringify(body) });
+    const d = await resp.json();
+    if (!resp.ok) {
+      showToast(d.error || "Failed to submit feedback", "error");
+      btn.style.opacity = "1";
+      btn.innerHTML = '<i class="fa fa-database"></i> Save to Database & Help Train AI';
+      return;
+    }
+    document.getElementById("feedbackCard").style.display = "none";
+    document.getElementById("successCard").style.display  = "block";
+    document.getElementById("communityCount").innerText  = d.community_count || "1";
+    document.getElementById("statContrib").innerText     = d.community_count || "1";
+    
+    let s = `<div class="saved-row"><span>Crop</span><strong>${I18n.crop(body.actual_crop, T)}</strong></div>`;
+    if (acres) s += `<div class="saved-row"><span>Acres</span><strong>${acres}</strong></div>`;
+    if (ppa)   s += `<div class="saved-row"><span>Profit/acre</span><strong>₹${ppa.toLocaleString("en-IN")}</strong></div>`;
+    if (d.total_profit) s += `<div class="saved-row"><span>Total profit</span><strong>₹${d.total_profit.toLocaleString("en-IN")}</strong></div>`;
+    if (ypa)   s += `<div class="saved-row"><span>Yield/acre</span><strong>${ypa} kg</strong></div>`;
+    if (d.total_yield)  s += `<div class="saved-row"><span>Total yield</span><strong>${d.total_yield} kg</strong></div>`;
+    document.getElementById("savedSummary").innerHTML = s;
+    showToast("✅ Saved to MongoDB database!");
+  } catch(e) {
+    showToast("❌ Failed to submit — please try again");
+    btn.style.opacity = "1";
+    btn.innerHTML = '<i class="fa fa-database"></i> Save to Database & Help Train AI';
+  }
+}
+</script>
+</body>
+</html>

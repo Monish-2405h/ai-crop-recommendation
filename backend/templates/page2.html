@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI Crop Advisor — Soil Parameters</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/auth.css">
+<script src="/static/js/auth.js"></script>
+</head>
+<body>
+<div class="bg-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+
+<div class="app" id="main-app">
+  <!-- TOP NAV -->
+  <div class="top-nav">
+    <a href="/history" class="nav-link" id="navHistory"><i class="fa fa-clock-rotate-left"></i> My History</a>
+    <span id="userDisplay" class="user-name"></span>
+    <button class="btn-logout" onclick="Auth.logout()" title="Logout"><i class="fa fa-sign-out-alt"></i></button>
+  </div>
+
+  <header class="header">
+    <div class="header-icon" onclick="window.location.href='/app'" style="cursor:pointer">🌾</div>
+    <div class="header-text">
+      <h1 id="appTitle">AI Crop Advisor</h1>
+      <p class="tagline" id="tagline">Smart farming intelligence for better yields</p>
+    </div>
+    <select id="language" class="lang-select" onchange="changeLang()">
+      <option value="en">🌐 English</option>
+      <option value="ta">தமிழ்</option>
+      <option value="te">తెలుగు</option>
+      <option value="kn">ಕನ್ನಡ</option>
+      <option value="ml">മലയാളം</option>
+      <option value="hi">हिंदी</option>
+    </select>
+  </header>
+
+  <div class="steps">
+    <div class="step done"><div class="step-circle"><i class="fa fa-check"></i></div><span id="s1">Location</span></div>
+    <div class="step-line done"></div>
+    <div class="step active"><div class="step-circle">2</div><span id="s2">Soil</span></div>
+    <div class="step-line"></div>
+    <div class="step"><div class="step-circle">3</div><span id="s3">Results</span></div>
+    <div class="step-line"></div>
+    <div class="step"><div class="step-circle">4</div><span id="s4">Feedback</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-icon">🧪</span>
+      <h2 id="soilTitle">Soil Parameters</h2>
+      <button class="btn-sensor" onclick="fillSensor()" title="Auto Fill">
+        <i class="fa fa-microchip"></i> <span id="sensorTxt">Sensor</span>
+      </button>
+    </div>
+
+    <div class="info-bar" id="locBar">
+      <i class="fa fa-location-dot"></i> <span id="locDisplay">Loading location...</span>
+    </div>
+
+    <div class="input-grid">
+      <div class="input-group">
+        <label><span class="badge badge-n">N</span> <span id="nLbl">Nitrogen</span></label>
+        <input type="number" id="n" placeholder="0–200 mg/kg" min="0" max="200">
+      </div>
+      <div class="input-group">
+        <label><span class="badge badge-p">P</span> <span id="pLbl">Phosphorus</span></label>
+        <input type="number" id="p" placeholder="0–150 mg/kg" min="0" max="150">
+      </div>
+      <div class="input-group">
+        <label><span class="badge badge-k">K</span> <span id="kLbl">Potassium</span></label>
+        <input type="number" id="k" placeholder="0–210 mg/kg" min="0" max="210">
+      </div>
+      <div class="input-group">
+        <label><i class="fa fa-thermometer-half"></i> <span id="tempLbl">Temperature (°C)</span></label>
+        <input type="number" id="temperature" placeholder="10–45°C" min="10" max="45">
+      </div>
+      <div class="input-group">
+        <label><i class="fa fa-droplet"></i> <span id="humLbl">Humidity (%)</span></label>
+        <input type="number" id="humidity" placeholder="20–100%" min="20" max="100">
+      </div>
+      <div class="input-group">
+        <label><i class="fa fa-flask"></i> <span id="phLbl">Soil pH</span></label>
+        <input type="number" id="ph" placeholder="4.0–9.0" min="4" max="9" step="0.1">
+      </div>
+    </div>
+
+    <div class="input-group" style="margin-top:0.8rem">
+      <label><i class="fa fa-cloud-rain"></i> <span id="rainLbl">Rainfall (mm)</span></label>
+      <input type="number" id="rainfall" placeholder="0–350 mm" min="0" max="350">
+    </div>
+
+    <!-- Soil Health Card hint -->
+    <div class="hint-box">
+      <i class="fa fa-info-circle" style="color:#52b788"></i>
+      <span>Don't have soil values? Get your FREE <strong>Soil Health Card</strong> from
+      <a href="https://soilhealth.dac.gov.in" target="_blank" style="color:#52b788">soilhealth.dac.gov.in</a></span>
+    </div>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-outline" onclick="window.location.href='/app'">
+      <i class="fa fa-arrow-left"></i> <span id="backTxt">Back</span>
+    </button>
+    <button class="btn btn-primary btn-next" onclick="predict()" id="predictBtn">
+      <i class="fa fa-seedling"></i> <span id="predictTxt">Get Recommendation</span>
+    </button>
+  </div>
+
+  <div id="loadingOverlay" class="loading-overlay" style="display:none">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <p id="loadingMsg">Analysing your soil...</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+Auth.guard();
+Auth.renderHeader();
+const T = {{ translations|tojson }};
+let lang = localStorage.getItem("cropLang") || "en";
+
+function changeLang() {
+  lang = document.getElementById("language").value;
+  localStorage.setItem("cropLang", lang);
+  document.getElementById("appTitle").innerText   = I18n.tr("app_title", T);
+  document.getElementById("tagline").innerText    = I18n.tr("tagline", T);
+  document.getElementById("s1").innerText         = I18n.tr("step1", T);
+  document.getElementById("s2").innerText         = I18n.tr("step2", T);
+  document.getElementById("s3").innerText         = I18n.tr("step3", T);
+  document.getElementById("s4").innerText         = I18n.tr("step4", T);
+  document.getElementById("navHistory").innerHTML = '<i class="fa fa-clock-rotate-left"></i> ' + I18n.tr("my_history", T);
+  document.getElementById("nLbl").innerText       = I18n.tr("nitrogen", T);
+  document.getElementById("pLbl").innerText       = I18n.tr("phosphorus", T);
+  document.getElementById("kLbl").innerText       = I18n.tr("potassium", T);
+  document.getElementById("tempLbl").innerText    = I18n.tr("temperature", T);
+  document.getElementById("humLbl").innerText     = I18n.tr("humidity", T);
+  document.getElementById("phLbl").innerText      = I18n.tr("ph", T);
+  document.getElementById("rainLbl").innerText    = I18n.tr("rainfall", T);
+  document.getElementById("sensorTxt").innerText  = I18n.tr("sensor", T);
+  document.getElementById("predictTxt").innerText = I18n.tr("recommend", T);
+  document.getElementById("backTxt").innerText    = I18n.tr("back", T);
+}
+
+window.onload = function() {
+  document.getElementById("language").value = lang;
+  changeLang();
+  // Pre-fill from page 1
+  const temp = localStorage.getItem("cropTemp");
+  const hum  = localStorage.getItem("cropHum");
+  const city = localStorage.getItem("cropCity") || "";
+  if (temp) document.getElementById("temperature").value = temp;
+  if (hum)  document.getElementById("humidity").value    = hum;
+  document.getElementById("locDisplay").innerText = city || "Selected location";
+};
+
+async function fillSensor() {
+  try {
+    const d = await (await fetch("/api/sensor")).json();
+    document.getElementById("n").value        = d.N;
+    document.getElementById("p").value        = d.P;
+    document.getElementById("k").value        = d.K;
+    document.getElementById("ph").value       = d.ph;
+    document.getElementById("rainfall").value = d.rainfall;
+    showToast("🔬 Sensor data loaded!");
+  } catch(e) {
+    showToast("Sensor connection failed");
+  }
+}
+
+async function predict() {
+  const fields = ["n","p","k","temperature","humidity","ph","rainfall"];
+  for (const f of fields) {
+    if (!document.getElementById(f).value) {
+      showToast("Please fill all fields"); return;
+    }
+  }
+  document.getElementById("loadingOverlay").style.display = "flex";
+  const loadMsgs = ["Analysing your soil...","Checking weather patterns...","Running ML model...","Generating advisory..."];
+  let mi = 0;
+  const interval = setInterval(() => {
+    document.getElementById("loadingMsg").innerText = loadMsgs[mi++ % loadMsgs.length];
+  }, 800);
+
+  const body = {
+    N:           parseFloat(document.getElementById("n").value),
+    P:           parseFloat(document.getElementById("p").value),
+    K:           parseFloat(document.getElementById("k").value),
+    temperature: parseFloat(document.getElementById("temperature").value),
+    humidity:    parseFloat(document.getElementById("humidity").value),
+    ph:          parseFloat(document.getElementById("ph").value),
+    rainfall:    parseFloat(document.getElementById("rainfall").value),
+    city:        localStorage.getItem("cropCity") || "your area",
+    lat:         parseFloat(localStorage.getItem("cropLat")) || null,
+    lon:         parseFloat(localStorage.getItem("cropLon")) || null,
+  };
+  localStorage.setItem("cropInputs", JSON.stringify(body));
+
+  try {
+    const resp = await Auth.fetch("/api/predictions", {
+      method: "POST", body: JSON.stringify(body)
+    });
+    const result = await resp.json();
+    clearInterval(interval);
+    document.getElementById("loadingOverlay").style.display = "none";
+    if (!resp.ok) {
+      showToast(result.error || "Prediction failed", "error");
+      return;
+    }
+    localStorage.setItem("cropResult", JSON.stringify(result));
+    window.location.href = "/results";
+  } catch(e) {
+    clearInterval(interval);
+    document.getElementById("loadingOverlay").style.display = "none";
+    showToast("Prediction failed — please try again");
+  }
+}
+</script>
+</body>
+</html>
